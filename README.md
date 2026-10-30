@@ -202,6 +202,7 @@ tools/wx/                                 canned Open-Meteo readings, one per sc
 .github/workflows/build.yml               tests and APK on every push, release on v* tags
 docs/USER_GUIDE.md                        the illustrated manual
 docs/previews/                            real screenshots, refreshed by the build
+docs/DESIGN_STORAGE.md                    proposal: SQLite storage and Drive sync
 ```
 
 Settings live in `SharedPreferences("navi")`: `size` (0–3), `bright` (15–100), `dim`,
