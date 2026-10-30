@@ -41,7 +41,7 @@ val javaExecutable: String =
  * The tool is a single source file with no dependencies, run straight from
  * source, so this works the same on a developer machine and in CI.
  */
-val userGuide by tasks.registering(Exec::class) {
+val userGuidePdf by tasks.registering(Exec::class) {
     group = "documentation"
     description = "Renders docs/USER_GUIDE.md into docs/navi-user-guide.pdf"
     inputs.file(file("docs/USER_GUIDE.md"))
@@ -55,6 +55,33 @@ val userGuide by tasks.registering(Exec::class) {
         file("docs/USER_GUIDE.md").absolutePath,
         file("docs/navi-user-guide.pdf").absolutePath,
     )
+}
+
+/**
+ * The same guide as one self-contained HTML page, pictures inlined.
+ *
+ * One file, so it can be mailed or put on a stick and opened anywhere,
+ * including on the head unit, without the previews folder beside it.
+ */
+val userGuideHtml by tasks.registering(Exec::class) {
+    group = "documentation"
+    description = "Renders docs/USER_GUIDE.md into docs/navi-user-guide.html"
+    inputs.file(file("docs/USER_GUIDE.md"))
+    inputs.dir(file("docs/previews"))
+    inputs.file(file("tools/MdHtml.java"))
+    outputs.file(file("docs/navi-user-guide.html"))
+    commandLine(
+        javaExecutable,
+        file("tools/MdHtml.java").absolutePath,
+        file("docs/USER_GUIDE.md").absolutePath,
+        file("docs/navi-user-guide.html").absolutePath,
+    )
+}
+
+val userGuide by tasks.registering {
+    group = "documentation"
+    description = "Renders the user guide in every published format"
+    dependsOn(userGuidePdf, userGuideHtml)
 }
 
 /**

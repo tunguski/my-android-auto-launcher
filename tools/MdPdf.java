@@ -104,8 +104,14 @@ public final class MdPdf {
         'ą', 'ć', 'ę', 'ł', 'ń', 'ś', 'ź', 'ż'
     };
 
-    /** The first code the /Differences array occupies. */
-    private static final int DIFF_START = 128;
+    /**
+     * The first code the /Differences array occupies.
+     *
+     * <p>Deliberately below the printable range. The obvious choice, 128, overlaps the punctuation
+     * WinAnsi keeps at 0x80..0x9F - an ellipsis is 0x85 - and the redefinition wins, so every "..."
+     * in the guide came out as a Polish S-acute until this moved out of the way.
+     */
+    private static final int DIFF_START = 1;
 
     static {
         for (int i = 0; i < DIFF_CHARS.length; i++) {
@@ -124,7 +130,21 @@ public final class MdPdf {
         EXTRA.put('·', 0xB7); // middle dot
         EXTRA.put('°', 0xB0); // degree
         EXTRA.put(' ', 0x20);
-        EXTRA.put('→', 0x3E); // arrow, as ">"
+    }
+
+    /**
+     * Characters with no glyph in these fonts, spelled out instead.
+     *
+     * <p>Applied to the source before anything is measured, so the width of what gets written is
+     * the width that was wrapped.
+     */
+    static String sanitize(String line) {
+        return line.replace("→", "->")
+                .replace("←", "<-")
+                .replace("≥", ">=")
+                .replace("≤", "<=")
+                .replace("≈", "~")
+                .replace("™", "(TM)");
     }
 
     private static int code(char c) {
@@ -276,7 +296,7 @@ public final class MdPdf {
             Item item = new Item();
 
             for (String raw : lines) {
-                String line = raw.stripTrailing();
+                String line = sanitize(raw.stripTrailing());
 
                 if (line.startsWith("```")) {
                     flush(paragraph);
@@ -599,8 +619,16 @@ public final class MdPdf {
             emit(run, MARGIN + (CONTENT_W - width(run.text, run.font, run.size)) / 2);
         }
 
+        /**
+         * Markdown markup removed from a table cell, which is drawn as plain text.
+         *
+         * <p>Links keep their words and lose their target; an image in a cell is dropped rather
+         * than printed as its own source, which is what used to happen.
+         */
         private static String strip(String text) {
-            return text.replace("**", "").replace("`", "");
+            String out = text.replaceAll("!\\[[^\\]]*\\]\\([^)]*\\)", "");
+            out = out.replaceAll("\\[([^\\]]*)\\]\\([^)]*\\)", "$1");
+            return out.replace("**", "").replace("`", "").trim();
         }
 
         /** Splits a line into runs at **bold** and `code` spans. */

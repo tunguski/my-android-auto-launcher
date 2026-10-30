@@ -223,10 +223,13 @@ clock on the home screen.
 Four sizes, because head units differ and so do eyes. 100 % is the default; the
 smaller variants shrink the clock sharply and the rest of the screen gently.
 
-| | |
-| --- | --- |
-| ![100%](previews/home_size_100.png) | ![80%](previews/home_size_80.png) |
-| ![67%](previews/home_size_67.png) | ![50%](previews/home_size_50.png) |
+![100 % — the default](previews/home_size_100.png)
+
+![80 %](previews/home_size_80.png)
+
+![67 %](previews/home_size_67.png)
+
+![50 % — for a small or oddly scaled screen](previews/home_size_50.png)
 
 ## Brightness
 

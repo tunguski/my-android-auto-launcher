@@ -85,8 +85,8 @@ shipped APK.
 ./gradlew assembleRelease    # needs signing configuration, see below
 ```
 
-Either build also renders [docs/navi-user-guide.pdf](docs/USER_GUIDE.md) from the Markdown
-guide and the stored previews.
+Either build also renders the user guide from the Markdown source and the stored
+previews, as `docs/navi-user-guide.pdf` and a self-contained `docs/navi-user-guide.html`.
 
 Point Gradle at your SDK with either `ANDROID_HOME` or a `local.properties` file containing
 `sdk.dir=/path/to/android/sdk`.
@@ -137,7 +137,7 @@ ignores them.
 
 ```bash
 ./gradlew previews           # overwrite docs/previews from a connected device
-./gradlew userGuide          # render docs/navi-user-guide.pdf
+./gradlew userGuide          # render the guide as PDF and HTML
 ```
 
 `previews` installs this build, runs the `ScreenshotTest` journey — every panel, all four
@@ -145,8 +145,10 @@ size variants, every warning state, both languages — and copies the results ov
 previews, so the pictures can never drift away from the code. CI does the same on an
 emulator for every push.
 
-The PDF is produced by [`tools/MdPdf.java`](tools/MdPdf.java), a single dependency-free
-source file run straight from source by the JDK.
+The PDF comes from [`tools/MdPdf.java`](tools/MdPdf.java) and the HTML from
+[`tools/MdHtml.java`](tools/MdHtml.java): single dependency-free source files, run straight
+from source by the JDK. The HTML inlines its pictures, so it is one file that opens
+anywhere - including on the head unit - without the previews folder beside it.
 
 ### Signing a release
 
@@ -193,6 +195,7 @@ app/src/androidTest/                      on-device journey tests and the screen
 app/src/testShared/                       trip fixtures used by both suites
 build.sh                                  Gradle-free build
 tools/MdPdf.java                          Markdown to PDF, no dependencies
+tools/MdHtml.java                         Markdown to one self-contained HTML page
 tools/screenshots.sh                      refreshes docs/previews from a device
 tools/wx-fixtures.sh                      regenerates the canned weather readings
 tools/wx/                                 canned Open-Meteo readings, one per scenario

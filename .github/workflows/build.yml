@@ -32,7 +32,7 @@ jobs:
       - name: Unit tests
         run: ./gradlew --no-daemon testDebugUnitTest
 
-      # assembleDebug also renders docs/navi-user-guide.pdf.
+      # assembleDebug also renders the user guide as PDF and HTML.
       - name: Assemble debug APK and the user guide
         run: ./gradlew --no-daemon assembleDebug
 
@@ -55,6 +55,7 @@ jobs:
           path: |
             docs/USER_GUIDE.md
             docs/navi-user-guide.pdf
+            docs/navi-user-guide.html
             docs/previews
           if-no-files-found: error
 
@@ -111,6 +112,7 @@ jobs:
           path: |
             docs/previews
             docs/navi-user-guide.pdf
+            docs/navi-user-guide.html
           if-no-files-found: error
 
   release:
@@ -162,6 +164,7 @@ jobs:
           mkdir -p release
           cp app/build/outputs/apk/release/navi-*-release.apk release/
           cp docs/navi-user-guide.pdf release/
+          cp docs/navi-user-guide.html release/
           cp docs/USER_GUIDE.md release/
           (cd docs && zip -r "$GITHUB_WORKSPACE/release/navi-previews.zip" previews)
           sha256sum release/* > SHA256SUMS.txt

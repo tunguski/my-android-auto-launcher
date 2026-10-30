@@ -127,4 +127,5 @@ if [ -f tools/MdPdf.java ]; then
     if [ -n "${JAVA_HOME:-}" ]; then JAVA_BIN="$JAVA_HOME/bin/java"; fi
     "$JAVA_BIN" -Djava.awt.headless=true tools/MdPdf.java \
         docs/USER_GUIDE.md docs/navi-user-guide.pdf
+    "$JAVA_BIN" tools/MdHtml.java docs/USER_GUIDE.md docs/navi-user-guide.html
 fi
