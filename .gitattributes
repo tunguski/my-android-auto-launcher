@@ -1,0 +1,10 @@
+# Keep line endings sane across Windows and the Linux CI runners.
+* text=auto eol=lf
+
+# Scripts and the Gradle wrapper must stay LF or they will not run on a runner.
+*.sh text eol=lf
+gradlew text eol=lf
+gradlew.bat text eol=crlf
+
+*.png binary
+*.jar binary

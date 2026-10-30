@@ -1,0 +1,25 @@
+# Build output
+out/
+build/
+.gradle/
+*.apk
+*.aab
+
+# Signing material - never commit a key
+*.jks
+*.keystore
+keystore.properties
+
+# Local SDK paths
+local.properties
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# The previous session pasted here for reference, not part of the project
+.old_session/
+
+# Generated from docs/USER_GUIDE.md on every build.
+docs/navi-user-guide.pdf

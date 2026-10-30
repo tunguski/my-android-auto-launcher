@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tile_nav">Nawigacja</string>
+    <string name="tile_weather">Pogoda</string>
+    <string name="tile_apps">Wszystko</string>
+
+    <string name="nav_back">‹  Wróć</string>
+
+    <string name="apps_title">Aplikacje</string>
+    <string name="apps_original_home">Oryginalny ekran: %1$s</string>
+
+    <string name="look_title">Wygląd ekranu</string>
+    <string name="look_clock_size">Rozmiar zegara</string>
+    <string name="look_brightness">Jasność napisów i ikon (tło zawsze czarne)</string>
+    <string name="look_night">Nocne przyciemnienie (dotknij zegara):  %1$s</string>
+    <string name="look_on">WŁ.</string>
+    <string name="look_off">WYŁ.</string>
+    <string name="look_language">Język</string>
+    <string name="lang_system">Systemowy</string>
+    <string name="home_default">Ustaw jako domyślny ekran główny</string>
+    <string name="home_picker">Otwórz systemowy wybór ekranu głównego…</string>
+    <string name="msg_already_default">To już jest domyślny ekran główny</string>
+    <string name="look_hint">Skrót: przytrzymaj zegar na ekranie głównym, żeby tu wrócić.</string>
+
+    <string name="weather_title">Pogoda</string>
+    <string name="weather_loading">Pobieram prognozę…</string>
+    <string name="weather_no_location">Brak lokalizacji. Zezwól aplikacji na dostęp do lokalizacji\n(Ustawienia → Aplikacje → Navi simple → Uprawnienia).</string>
+    <string name="weather_error">Błąd danych pogody</string>
+    <string name="weather_feels">Odczuwalna %1$d°   ·   Wiatr %2$d km/h</string>
+    <string name="weather_today">dziś</string>
+
+    <string name="warn_prefix">Uwaga: %1$s</string>
+    <string name="warn_ice">Gołoledź</string>
+    <string name="warn_storm">Burza</string>
+    <string name="warn_wind">Silny wiatr</string>
+    <string name="warn_fog">Gęsta mgła</string>
+    <string name="warn_snow">Intensywny śnieg</string>
+
+    <string name="msg_spotify_missing">Spotify nie jest zainstalowane – otwieram Sklep Play</string>
+    <string name="msg_cant_open">Nie można otworzyć</string>
+
+    <string name="wmo_clear">Bezchmurnie</string>
+    <string name="wmo_mostly_clear">Prawie bezchmurnie</string>
+    <string name="wmo_partly_cloudy">Częściowe zachmurzenie</string>
+    <string name="wmo_overcast">Pochmurno</string>
+    <string name="wmo_fog">Mgła</string>
+    <string name="wmo_drizzle">Mżawka</string>
+    <string name="wmo_freezing_rain">Marznący deszcz</string>
+    <string name="wmo_rain">Deszcz</string>
+    <string name="wmo_snow">Śnieg</string>
+    <string name="wmo_showers">Przelotny deszcz</string>
+    <string name="wmo_snow_showers">Przelotny śnieg</string>
+    <string name="wmo_storm">Burza</string>
+
+    <string name="sh_clear">pogodnie</string>
+    <string name="sh_clouds">chmury</string>
+    <string name="sh_overcast">pochm.</string>
+    <string name="sh_fog">mgła</string>
+    <string name="sh_rain">deszcz</string>
+    <string name="sh_snow">śnieg</string>
+    <string name="sh_showers">przelotny</string>
+    <string name="sh_storm">burza</string>
+
+    <string name="tile_trip">Trasa</string>
+    <string name="stats_title">Trasa</string>
+    <string name="stats_time">Czas</string>
+    <string name="stats_distance">Dystans</string>
+    <string name="stats_to_home">Do domu</string>
+    <string name="stats_no_home">dom nieustawiony</string>
+    <string name="stats_no_route">Brak zapisanej trasy</string>
+    <string name="stats_history">Wcześniejsze trasy</string>
+    <string name="stats_route_desc">Kształt zapisanej trasy</string>
+    <string name="stats_current">teraz</string>
+
+    <string name="home_section">Punkt domu</string>
+    <string name="home_set_here">Ustaw tutaj dom</string>
+    <string name="home_set_address">Wpisz adres…</string>
+    <string name="home_saved">Zapisano punkt domu</string>
+    <string name="home_not_found">Nie znaleziono adresu</string>
+    <string name="home_no_fix">Brak pozycji GPS</string>
+
+    <string name="notif_channel">Zapis trasy</string>
+    <string name="notif_title">Zapisuję trasę</string>
+</resources>

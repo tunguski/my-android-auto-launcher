@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The app name is a proper noun and stays the same in every language. -->
+    <string name="app_name">Navi simple</string>
+
+    <!-- Home screen tiles -->
+    <string name="tile_nav">Navigation</string>
+    <string name="tile_music">Spotify</string>
+    <string name="tile_weather">Weather</string>
+    <string name="tile_apps">All apps</string>
+
+    <!-- Date line under the clock; see SimpleDateFormat patterns. -->
+    <string name="clock_date_format">EEEE, d MMMM</string>
+
+    <!-- Navigation -->
+    <string name="nav_back">‹  Back</string>
+
+    <!-- All apps -->
+    <string name="apps_title">Apps</string>
+    <string name="apps_original_home">Original screen: %1$s</string>
+
+    <!-- Screen layout -->
+    <string name="look_title">Screen layout</string>
+    <string name="look_clock_size">Clock size</string>
+    <string name="look_brightness">Text and icon brightness (background always black)</string>
+    <string name="look_night">Night dimming (tap the clock):  %1$s</string>
+    <string name="look_on">ON</string>
+    <string name="look_off">OFF</string>
+    <string name="look_language">Language</string>
+    <string name="lang_system">System</string>
+    <string name="lang_en">English</string>
+    <string name="lang_pl">Polski</string>
+    <string name="home_default">Set as default home screen</string>
+    <string name="home_picker">Open the system home-screen picker…</string>
+    <string name="msg_already_default">Already the default home screen</string>
+    <string name="look_hint">Shortcut: hold the clock on the home screen to get back here.</string>
+
+    <!-- Weather screen -->
+    <string name="weather_title">Weather</string>
+    <string name="weather_loading">Fetching forecast…</string>
+    <string name="weather_no_location">No location yet. Allow this app to use location\n(Settings → Apps → Navi simple → Permissions).</string>
+    <string name="weather_error">Weather data error</string>
+    <string name="weather_feels">Feels like %1$d°   ·   Wind %2$d km/h</string>
+    <string name="weather_today">today</string>
+
+    <!-- Warnings -->
+    <string name="warn_prefix">Warning: %1$s</string>
+    <string name="warn_ice">Black ice</string>
+    <string name="warn_storm">Storm</string>
+    <string name="warn_wind">Strong wind</string>
+    <string name="warn_fog">Dense fog</string>
+    <string name="warn_snow">Heavy snow</string>
+
+    <!-- Toasts -->
+    <string name="msg_spotify_missing">Spotify is not installed – opening the Play Store</string>
+    <string name="msg_cant_open">Cannot open</string>
+
+    <!-- WMO weather codes, long form -->
+    <string name="wmo_clear">Clear</string>
+    <string name="wmo_mostly_clear">Mostly clear</string>
+    <string name="wmo_partly_cloudy">Partly cloudy</string>
+    <string name="wmo_overcast">Overcast</string>
+    <string name="wmo_fog">Fog</string>
+    <string name="wmo_drizzle">Drizzle</string>
+    <string name="wmo_freezing_rain">Freezing rain</string>
+    <string name="wmo_rain">Rain</string>
+    <string name="wmo_snow">Snow</string>
+    <string name="wmo_showers">Showers</string>
+    <string name="wmo_snow_showers">Snow showers</string>
+    <string name="wmo_storm">Thunderstorm</string>
+
+    <!-- WMO weather codes, short form used in the hourly and daily strips -->
+    <string name="sh_clear">clear</string>
+    <string name="sh_clouds">clouds</string>
+    <string name="sh_overcast">overcast</string>
+    <string name="sh_fog">fog</string>
+    <string name="sh_rain">rain</string>
+    <string name="sh_snow">snow</string>
+    <string name="sh_showers">showers</string>
+    <string name="sh_storm">storm</string>
+
+    <!-- Trip screen -->
+    <string name="tile_trip">Trip</string>
+    <string name="stats_title">Trip</string>
+    <string name="stats_time">Time</string>
+    <string name="stats_distance">Distance</string>
+    <string name="stats_to_home">To home</string>
+    <string name="stats_no_home">home not set</string>
+    <string name="stats_no_route">No route recorded yet</string>
+    <string name="stats_history">Earlier trips</string>
+    <string name="stats_route_desc">Shape of the recorded route</string>
+    <string name="stats_current">now</string>
+
+    <!-- Home point -->
+    <string name="home_section">Home point</string>
+    <string name="home_set_here">Set home here</string>
+    <string name="home_set_address">Enter an address…</string>
+    <string name="home_saved">Home point saved</string>
+    <string name="home_not_found">Address not found</string>
+    <string name="home_no_fix">No GPS position yet</string>
+
+    <!-- Recording notification -->
+    <string name="notif_channel">Trip recording</string>
+    <string name="notif_title">Recording trip</string>
+    <string name="notif_text">%1$s · %2$s</string>
+</resources>
