@@ -3,111 +3,135 @@ package pl.matsuo.navi;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
 import java.util.List;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
 
 /**
- * The recording rulebook: when a new trip starts, which fixes count, what the figures add up to and
- * how a restarted process picks the drive up again.
+ * The recording rulebook: which fixes count, what the figures add up to, when one drive ends and
+ * the next begins, and how a restarted process picks a drive up again.
  */
 public class TripTest {
 
-    @Rule public TemporaryFolder folder = new TemporaryFolder();
-
-    private File dir;
+    private FakeStore store;
     private long t0;
 
     @Before
-    public void setUp() throws IOException {
-        dir = folder.newFolder("trips");
-        t0 = 1_700_000_000_000L; // a fixed instant, so names are stable
+    public void setUp() {
+        store = new FakeStore();
+        t0 = 1_700_000_000_000L; // a fixed instant
         Trip.forget();
     }
 
     private boolean fix(long at, double lat, double lon) {
-        return Trip.record(dir, at, lat, lon, Trip.NO_ACCURACY);
+        return Trip.record(store, at, lat, lon, Trip.NO_ACCURACY);
     }
 
     // ───────────────────────────── starting a trip ─────────────────────────────
 
     @Test
-    public void theFirstFixOpensATripFile() {
+    public void theFirstFixOpensATrip() {
         assertTrue(fix(t0, 52.2297, 21.0122));
-        assertEquals(1, Trip.list(dir).length);
+        assertEquals(1, store.tripCount());
         assertEquals(1, Trip.points);
         assertEquals(t0, Trip.startedAt);
         assertEquals(0, Trip.meters, 0.001);
         assertEquals(52.2297, Trip.lastLat, 1e-6);
         assertEquals(21.0122, Trip.lastLon, 1e-6);
+        assertNotEquals(0, Trip.currentId());
     }
 
     @Test
-    public void theFileIsNamedAfterTheStartOfTheTrip() {
+    public void theFirstFixIsStored() {
         fix(t0, 52.2297, 21.0122);
-        String name = Trip.list(dir)[0].getName();
-        assertTrue(name, name.startsWith("trip-") && name.endsWith(".csv"));
+        FakeStore.Stored s = store.newest();
+        assertEquals(1, s.points());
+        assertEquals(t0 / 1000, s.startedAt());
     }
 
     @Test
-    public void aPauseLongerThanFiveMinutesStartsANewTrip() {
+    public void nothingIsOpenBeforeTheFirstFix() {
+        assertEquals(0, Trip.currentId());
+        assertEquals(0, store.tripCount());
+    }
+
+    @Test
+    public void aPauseLongerThanFiveMinutesEndsTheDriveAndStartsAnother() {
         fix(t0, 52.2297, 21.0122);
+        long first = Trip.currentId();
+
         fix(t0 + Trip.GAP_MS + 1000, 52.4000, 21.0122);
-        assertEquals(2, Trip.list(dir).length);
-        assertEquals(1, Trip.points); // the figures restart with the new trip
+
+        assertEquals(2, store.tripCount());
+        assertTrue("the first drive was not closed", store.get(first).closed);
+        assertNotEquals(first, Trip.currentId());
+        assertEquals(1, Trip.points); // the figures restart with the new drive
         assertEquals(0, Trip.meters, 0.001);
     }
 
     @Test
-    public void aShorterPauseKeepsTheSameTrip() {
+    public void aShorterPauseKeepsTheSameDrive() {
         fix(t0, 52.2297, 21.0122);
+        long id = Trip.currentId();
         fix(t0 + Trip.GAP_MS - 1000, 52.2397, 21.0122);
-        assertEquals(1, Trip.list(dir).length);
+
+        assertEquals(1, store.tripCount());
+        assertEquals(id, Trip.currentId());
         assertEquals(2, Trip.points);
+        assertEquals(0, store.closedCount());
+    }
+
+    @Test
+    public void aPauseOfExactlyTheGapStillKeepsTheDrive() {
+        fix(t0, 52.2297, 21.0122);
+        fix(t0 + Trip.GAP_MS, 52.2397, 21.0122);
+        assertEquals(1, store.tripCount());
     }
 
     // ──────────────────────────── filtering fixes ────────────────────────────
 
     @Test
     public void anImpreciseFixIsDropped() {
-        assertFalse(Trip.record(dir, t0, 52.2297, 21.0122, Trip.MAX_ACCURACY_M + 1));
-        assertEquals(0, Trip.list(dir).length);
+        assertFalse(Trip.record(store, t0, 52.2297, 21.0122, Trip.MAX_ACCURACY_M + 1));
+        assertEquals(0, store.tripCount());
         assertEquals(0, Trip.points);
     }
 
     @Test
     public void aFixAtTheAccuracyLimitIsKept() {
-        assertTrue(Trip.record(dir, t0, 52.2297, 21.0122, Trip.MAX_ACCURACY_M));
+        assertTrue(Trip.record(store, t0, 52.2297, 21.0122, Trip.MAX_ACCURACY_M));
         assertEquals(1, Trip.points);
     }
 
     @Test
-    public void standingStillStoresNothingButKeepsTheTripAlive() {
+    public void anUnknownAccuracyIsNotTreatedAsBad() {
+        assertTrue(Trip.record(store, t0, 52.2297, 21.0122, Trip.NO_ACCURACY));
+        assertEquals(1, Trip.points);
+    }
+
+    @Test
+    public void standingStillStoresNothingButKeepsTheDriveAlive() {
         fix(t0, 52.2297, 21.0122);
-        // Two metres away: below the minimum step.
-        assertFalse(fix(t0 + 10_000, 52.22972, 21.01220));
+        assertFalse("two metres is not movement", fix(t0 + 10_000, 52.22972, 21.01220));
         assertEquals(1, Trip.points);
         assertEquals(0, Trip.meters, 0.001);
 
-        // The trip is still open ten minutes later because the clock kept moving.
+        // The drive is still open ten minutes later because the clock kept moving.
         fix(t0 + 10_000 + Trip.GAP_MS - 1000, 52.2397, 21.0122);
-        assertEquals(1, Trip.list(dir).length);
+        assertEquals(1, store.tripCount());
         assertEquals(2, Trip.points);
     }
 
     @Test
     public void aGpsJumpIsRecordedButNotCounted() {
         fix(t0, 52.2297, 21.0122);
-        fix(t0 + 10_000, 54.3520, 18.6466); // 296 km in ten seconds
+        fix(t0 + 10_000, 54.3520, 18.6466); // 283 km in ten seconds
         assertEquals(2, Trip.points);
         assertEquals(0, Trip.meters, 0.001);
+        assertEquals(2, store.newest().points());
     }
 
     @Test
@@ -122,215 +146,202 @@ public class TripTest {
         assertEquals(3, Trip.points);
     }
 
-    // ────────────────────────────── reading back ──────────────────────────────
-
     @Test
-    public void whatIsRecordedIsWhatIsReadBack() {
-        fix(t0, 52.2297, 21.0122);
-        fix(t0 + 10_000, 52.2397, 21.0222);
-        List<double[]> pts = Trip.read(Trip.list(dir)[0]);
-        assertEquals(2, pts.size());
-        assertEquals(52.2297, pts.get(0)[0], 1e-6);
-        assertEquals(21.0222, pts.get(1)[1], 1e-6);
-    }
-
-    @Test
-    public void readingAMissingFileGivesAnEmptyRoute() {
-        assertTrue(Trip.read(new File(dir, "nope.csv")).isEmpty());
-        assertTrue(Trip.read(null).isEmpty());
-    }
-
-    @Test
-    public void damagedLinesAreSkippedAndTheRestOfTheTripSurvives() throws IOException {
-        File f = new File(dir, "trip-20231114-220000.csv");
-        try (FileWriter w = new FileWriter(f)) {
-            w.write("1700000000,52.229700,21.012200\n");
-            w.write("garbage\n");
-            w.write("1700000010,oops,21.012200\n");
-            w.write("1700000020,52.239700,21.012200\n");
-        }
-        List<double[]> pts = Trip.read(f);
-        assertEquals(2, pts.size());
-
-        Trip.Summary s = Trip.summarize(f);
-        assertEquals(2, s.points);
-        assertEquals(1_700_000_000_000L, s.startedAt);
-        assertEquals(1_700_000_020_000L, s.endedAt);
-        assertEquals(Geo.distance(52.2297, 21.0122, 52.2397, 21.0122), s.meters, 1.0);
-    }
-
-    @Test
-    public void summaryOfAnEmptyFileHasNoPoints() throws IOException {
-        File f = folder.newFile("empty.csv");
-        assertEquals(0, Trip.summarize(f).points);
-    }
-
-    @Test
-    public void tripsAreListedNewestFirst() {
-        fix(t0, 52.2297, 21.0122);
-        fix(t0 + 2 * Trip.GAP_MS, 52.3297, 21.0122);
-        File[] files = Trip.list(dir);
-        assertEquals(2, files.length);
-        assertTrue(files[0].getName().compareTo(files[1].getName()) > 0);
-    }
-
-    @Test
-    public void onlyCsvFilesCountAsTrips() throws IOException {
-        fix(t0, 52.2297, 21.0122);
-        assertTrue(new File(dir, "notes.txt").createNewFile());
-        assertEquals(1, Trip.list(dir).length);
-    }
-
-    @Test
-    public void anEmptyFolderHasNoTrips() throws IOException {
-        assertEquals(0, Trip.list(folder.newFolder("fresh")).length);
+    public void aStepJustOverTheMovementThresholdCounts() {
+        fix(t0, 52.0, 21.0);
+        assertTrue(fix(t0 + 10_000, 52.000060, 21.0)); // about 6.7 m north
+        assertEquals(2, Trip.points);
     }
 
     // ───────────────────── resuming after a process restart ─────────────────────
 
     @Test
-    public void aRecentTripIsPickedUpAgainAfterARestart() {
+    public void aRecentDriveIsPickedUpAgain() {
         fix(t0, 52.2297, 21.0122);
         fix(t0 + 10_000, 52.2397, 21.0122);
-        File before = Trip.currentFile();
-        double metresBefore = Trip.meters;
+        long id = Trip.currentId();
+        double metersBefore = Trip.meters;
 
-        Trip.forget(); // as if the service had been killed
-        Trip.resume(dir, t0 + 60_000);
+        store.restart();
+        Trip.resume(store, t0 + 60_000);
 
-        assertEquals(before, Trip.currentFile());
+        assertEquals(id, Trip.currentId());
         assertEquals(2, Trip.points);
-        assertEquals(metresBefore, Trip.meters, 1.0);
+        assertEquals(metersBefore, Trip.meters, 1.0);
         assertEquals(t0, Trip.startedAt);
+        assertEquals(52.2397, Trip.lastLat, 1e-6);
     }
 
     @Test
-    public void fixesAfterAResumeAppendToTheSameFile() {
+    public void fixesAfterAResumeJoinTheSameDrive() {
         fix(t0, 52.2297, 21.0122);
         fix(t0 + 10_000, 52.2397, 21.0122);
-        File before = Trip.currentFile();
+        long id = Trip.currentId();
 
-        Trip.forget();
-        Trip.resume(dir, t0 + 60_000);
+        store.restart();
+        Trip.resume(store, t0 + 60_000);
         fix(t0 + 70_000, 52.2497, 21.0122);
 
-        assertEquals(1, Trip.list(dir).length);
-        assertEquals(before, Trip.currentFile());
+        assertEquals(1, store.tripCount());
+        assertEquals(id, Trip.currentId());
         assertEquals(3, Trip.points);
-        assertEquals(3, Trip.read(before).size());
+        assertEquals(3, store.get(id).points());
     }
 
     @Test
-    public void anOldTripIsNotResumed() {
+    public void anOldDriveIsClosedRatherThanResumed() {
         fix(t0, 52.2297, 21.0122);
-        File before = Trip.currentFile();
+        long id = Trip.currentId();
 
-        Trip.forget();
-        Trip.resume(dir, t0 + Trip.GAP_MS + 1000);
-        assertEquals(null, Trip.currentFile());
+        store.restart();
+        Trip.resume(store, t0 + Trip.GAP_MS + 1000);
+
+        assertTrue("the stale drive should have been closed", store.get(id).closed);
+        assertEquals(0, Trip.currentId());
 
         fix(t0 + Trip.GAP_MS + 2000, 52.2397, 21.0122);
-        assertNotEquals(before, Trip.currentFile());
-        assertEquals(2, Trip.list(dir).length);
+        assertNotEquals(id, Trip.currentId());
+        assertEquals(2, store.tripCount());
     }
 
     @Test
     public void resumingWithNothingStoredIsHarmless() {
-        Trip.resume(dir, t0);
-        assertEquals(null, Trip.currentFile());
+        Trip.resume(store, t0);
+        assertEquals(0, Trip.currentId());
         assertEquals(0, Trip.points);
     }
 
     @Test
-    public void resumingPastAnEmptyNewestFileIsHarmless() throws IOException {
-        assertTrue(new File(dir, "trip-29991231-235959.csv").createNewFile());
-        Trip.resume(dir, t0);
-        assertEquals(null, Trip.currentFile());
-    }
+    public void resumingWhenEverythingIsClosedIsHarmless() {
+        fix(t0, 52.0, 21.0);
+        Trip.closeCurrent(store);
 
-    // ───────────────────────────── the demo history ─────────────────────────────
-
-    @Test
-    public void theFixturesWriteThreeTripsWithTheLongOneNewest() throws IOException {
-        TripFixtures.writeAll(dir, t0);
-        File[] files = Trip.list(dir);
-        assertEquals(3, files.length);
-
-        Trip.Summary newest = Trip.summarize(files[0]);
-        Trip.Summary middle = Trip.summarize(files[1]);
-        Trip.Summary oldest = Trip.summarize(files[2]);
-        assertTrue(newest.meters > middle.meters);
-        assertTrue(newest.meters > oldest.meters);
-        assertTrue(newest.startedAt > middle.startedAt);
-        assertTrue(middle.startedAt > oldest.startedAt);
+        Trip.resume(store, t0 + 1000);
+        assertEquals(0, Trip.currentId());
     }
 
     @Test
-    public void theWarsawGdanskFixtureIsARealisticDrive() throws IOException {
-        TripFixtures.writeAll(dir, t0);
-        Trip.Summary s = Trip.summarize(Trip.list(dir)[0]);
+    public void aTripOpenedButNeverWrittenToIsAdopted() {
+        long id = store.open(t0 / 1000, Track.micro(52.0), Track.micro(21.0));
+        store.get(id).fixes.clear(); // opened, then the process died before the first write
 
-        // 320 km and 3 h 50, an average of 83 km/h.
-        assertEquals(320_000, s.meters, 10_000);
-        long hours = (s.endedAt - s.startedAt) / 3_600_000L;
-        assertEquals(3, hours, 1);
-        double kmh = s.meters / 1000.0 / ((s.endedAt - s.startedAt) / 3_600_000.0);
-        assertTrue("average " + kmh + " km/h", kmh > 75 && kmh < 95);
-        assertTrue("fixes " + s.points, s.points > 1000);
+        Trip.resume(store, t0 + 1000);
+        assertEquals(id, Trip.currentId());
+
+        fix(t0 + 2000, 52.0, 21.0);
+        assertEquals("no second trip should have been opened", 1, store.tripCount());
+    }
+
+    // ───────────────────────────── closing by hand ─────────────────────────────
+
+    @Test
+    public void closingEndsTheDriveAndClearsTheFigures() {
+        fix(t0, 52.0, 21.0);
+        long id = Trip.currentId();
+
+        Trip.closeCurrent(store);
+
+        assertTrue(store.get(id).closed);
+        assertEquals(0, Trip.currentId());
+        assertEquals(0, Trip.points);
+        assertEquals(0, Trip.meters, 0.0);
     }
 
     @Test
-    public void theWarsawGdanskFixtureStartsInWarsawAndEndsInGdansk() throws IOException {
-        TripFixtures.writeAll(dir, t0);
-        List<double[]> pts = Trip.read(Trip.list(dir)[0]);
-        assertEquals(52.2297, pts.get(0)[0], 0.001);
-        assertEquals(21.0122, pts.get(0)[1], 0.001);
-        assertEquals(54.3520, pts.get(pts.size() - 1)[0], 0.001);
-        assertEquals(18.6466, pts.get(pts.size() - 1)[1], 0.001);
+    public void closingWhenNothingIsOpenDoesNothing() {
+        Trip.closeCurrent(store);
+        assertEquals(0, store.closeCalls);
+        assertEquals(0, Trip.currentId());
     }
 
     @Test
-    public void theFixtureKeepsTenSecondsBetweenFixes() {
-        List<double[]> fixes = TripFixtures.expand(TripFixtures.WARSAW_GDANSK, t0);
-        for (int i = 1; i < fixes.size(); i++) {
-            assertEquals(TripFixtures.STEP_MS, (long) (fixes.get(i)[0] - fixes.get(i - 1)[0]));
+    public void forgettingLeavesTheStoredDriveAlone() {
+        fix(t0, 52.0, 21.0);
+        long id = Trip.currentId();
+
+        Trip.forget();
+
+        assertEquals(0, Trip.currentId());
+        assertFalse("forgetting must not close anything", store.get(id).closed);
+        assertEquals(1, store.get(id).points());
+    }
+
+    // ───────────────────────────── the demo drives ─────────────────────────────
+
+    @Test
+    public void theWarsawGdanskFixtureRecordsAsOneDrive() {
+        List<double[]> drive = TripFixtures.expand(TripFixtures.WARSAW_GDANSK, t0);
+        for (double[] f : drive) {
+            Trip.record(store, (long) f[0], f[1], f[2], Trip.NO_ACCURACY);
+        }
+        assertEquals("the drive was split", 1, store.tripCount());
+        assertEquals(drive.size(), Trip.points);
+        assertEquals(320_000, Trip.meters, 10_000);
+    }
+
+    @Test
+    public void theShortFixturesRecordAsTownDrives() {
+        for (TripFixtures.Leg[] legs :
+                new TripFixtures.Leg[][] {TripFixtures.SHORT_ERRAND, TripFixtures.SHORT_COMMUTE}) {
+            Trip.forget();
+            FakeStore fresh = new FakeStore();
+            for (double[] f : TripFixtures.expand(legs, t0)) {
+                Trip.record(fresh, (long) f[0], f[1], f[2], Trip.NO_ACCURACY);
+            }
+            assertEquals(1, fresh.tripCount());
+            assertTrue("length " + Trip.meters, Trip.meters > 1_000 && Trip.meters < 20_000);
         }
     }
 
     @Test
-    public void everyFixtureStepIsBelowTheGpsJumpLimit() {
-        // Otherwise the app would record the shape but refuse to count the
-        // distance, and the demo history would read as zero kilometres.
-        List<double[]> fixes = TripFixtures.expand(TripFixtures.WARSAW_GDANSK, t0);
-        for (int i = 1; i < fixes.size(); i++) {
-            float step =
-                    Geo.distance(
-                            fixes.get(i - 1)[1],
-                            fixes.get(i - 1)[2],
-                            fixes.get(i)[1],
-                            fixes.get(i)[2]);
-            assertTrue("step " + step + " m", step > Trip.MIN_STEP_M && step < Trip.MAX_STEP_M);
+    public void theFixtureDriveSurvivesARestartHalfway() {
+        List<double[]> drive = TripFixtures.expand(TripFixtures.WARSAW_GDANSK, t0);
+        int half = drive.size() / 2;
+        for (int i = 0; i < half; i++) {
+            double[] f = drive.get(i);
+            Trip.record(store, (long) f[0], f[1], f[2], Trip.NO_ACCURACY);
         }
+        long id = Trip.currentId();
+        double halfway = Trip.meters;
+
+        store.restart();
+        Trip.resume(store, (long) drive.get(half - 1)[0] + 60_000);
+        for (int i = half; i < drive.size(); i++) {
+            double[] f = drive.get(i);
+            Trip.record(store, (long) f[0], f[1], f[2], Trip.NO_ACCURACY);
+        }
+
+        assertEquals("the drive was split by the restart", 1, store.tripCount());
+        assertEquals(id, Trip.currentId());
+        assertTrue(Trip.meters > halfway);
+        assertEquals(320_000, Trip.meters, 10_000);
+        assertEquals(drive.size(), store.get(id).points());
     }
 
     @Test
-    public void theShortFixturesAreTownDrives() throws IOException {
-        TripFixtures.writeAll(dir, t0);
-        File[] files = Trip.list(dir);
-        for (int i = 1; i < 3; i++) {
-            Trip.Summary s = Trip.summarize(files[i]);
-            assertTrue("length " + s.meters, s.meters > 1_000 && s.meters < 20_000);
-            long minutes = (s.endedAt - s.startedAt) / 60_000L;
-            assertTrue("duration " + minutes + " min", minutes >= 2 && minutes <= 45);
+    public void aDriveIsNotResumedAcrossTheNight() {
+        List<double[]> drive = TripFixtures.expand(TripFixtures.SHORT_COMMUTE, t0);
+        for (double[] f : drive) {
+            Trip.record(store, (long) f[0], f[1], f[2], Trip.NO_ACCURACY);
         }
+        long id = Trip.currentId();
+
+        store.restart();
+        Trip.resume(store, (long) drive.get(drive.size() - 1)[0] + 12 * 3600_000L);
+
+        assertTrue(store.get(id).closed);
+        assertEquals(0, Trip.currentId());
     }
 
     @Test
-    public void theNewestFixtureTripIsRecentEnoughToBeResumedAsTheCurrentDrive()
-            throws IOException {
-        TripFixtures.writeAll(dir, t0);
-        Trip.resume(dir, t0);
-        assertEquals(Trip.list(dir)[0], Trip.currentFile());
-        assertTrue(Trip.meters > 300_000);
+    public void theTestDoubleRefusesAFixForATripThatWasNeverOpened() {
+        // Guards the double itself: a rule change that appended without opening
+        // would otherwise pass silently.
+        try {
+            store.append(99, t0 / 1000, 0, 0);
+            org.junit.Assert.fail("expected the store to refuse");
+        } catch (IllegalStateException expected) {
+            assertNull(store.get(99));
+        }
     }
 }

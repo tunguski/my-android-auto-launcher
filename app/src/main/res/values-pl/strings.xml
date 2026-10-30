@@ -81,4 +81,34 @@
 
     <string name="notif_channel">Zapis trasy</string>
     <string name="notif_title">Zapisuję trasę</string>
+
+    <!-- Kopia zapasowa -->
+    <string name="backup_section">Kopia zapasowa</string>
+    <string name="backup_off">Wyłączona</string>
+    <string name="backup_folder">Katalog na tym urządzeniu</string>
+    <string name="backup_drive">Dysk Google</string>
+    <string name="backup_waiting">%1$d tras czeka</string>
+    <string name="backup_all_done">Wszystko skopiowane</string>
+    <string name="backup_last_ok">Ostatnia kopia: %1$s</string>
+    <string name="backup_last_error">Ostatnia próba nieudana: %1$s</string>
+    <string name="backup_not_configured">Kopia zapasowa nie jest skonfigurowana</string>
+    <string name="backup_no_client">Ta wersja nie ma klienta Google; zobacz README projektu</string>
+    <string name="backup_sign_in">Zaloguj się do Google</string>
+    <string name="backup_sign_out">Wyloguj z Google</string>
+    <string name="backup_signed_in">Zalogowano</string>
+    <string name="backup_code_title">Na telefonie otwórz</string>
+    <string name="backup_code_hint">i wpisz ten kod</string>
+    <string name="backup_waiting_for_sign_in">Czekam, aż skończysz na telefonie…</string>
+    <string name="backup_sign_in_done">Zalogowano. Trasy będą kopiowane na Twój Dysk.</string>
+    <string name="backup_sign_in_failed">Logowanie nieudane: %1$s</string>
+    <string name="backup_export_now">Wyeksportuj wszystkie trasy</string>
+    <string name="backup_exporting">Eksportuję…</string>
+    <string name="backup_exported">Wyeksportowano %1$d tras</string>
+
+    <!-- Dane -->
+    <string name="storage_section">Dane</string>
+    <string name="storage_trips">%1$d tras w bazie, %2$s</string>
+    <string name="storage_imported">Zachowane pliki CSV po imporcie: %1$s</string>
+    <string name="storage_delete_imported">Usuń zaimportowane pliki CSV</string>
+    <string name="storage_deleted">Usunięto %1$d plików</string>
 </resources>

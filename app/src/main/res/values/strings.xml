@@ -103,4 +103,38 @@
     <string name="notif_channel">Trip recording</string>
     <string name="notif_title">Recording trip</string>
     <string name="notif_text">%1$s · %2$s</string>
+
+    <!-- Backup -->
+    <string name="backup_section">Backup</string>
+    <string name="backup_off">Off</string>
+    <string name="backup_folder">Folder on this unit</string>
+    <string name="backup_drive">Google Drive</string>
+    <string name="backup_waiting">%1$d trips waiting</string>
+    <string name="backup_all_done">Everything is backed up</string>
+    <string name="backup_last_ok">Last backup: %1$s</string>
+    <string name="backup_last_error">Last attempt failed: %1$s</string>
+    <string name="backup_not_configured">Backup is not set up</string>
+    <string name="backup_no_client">This build carries no Google client; see the project README</string>
+    <string name="backup_sign_in">Sign in to Google</string>
+    <string name="backup_sign_out">Sign out of Google</string>
+    <string name="backup_signed_in">Signed in</string>
+    <string name="backup_code_title">On your phone, open</string>
+    <string name="backup_code_hint">and enter this code</string>
+    <string name="backup_waiting_for_sign_in">Waiting for you to finish on the phone…</string>
+    <string name="backup_sign_in_done">Signed in. Trips will be copied to your Drive.</string>
+    <string name="backup_sign_in_failed">Sign-in failed: %1$s</string>
+    <string name="backup_export_now">Export every trip now</string>
+    <string name="backup_exporting">Exporting…</string>
+    <string name="backup_exported">Exported %1$d trips</string>
+
+    <!-- Storage -->
+    <string name="storage_section">Storage</string>
+    <string name="storage_trips">%1$d trips stored, %2$s</string>
+    <string name="storage_imported">Imported CSV files still kept: %1$s</string>
+    <string name="storage_delete_imported">Delete the imported CSV files</string>
+    <string name="storage_deleted">Deleted %1$d files</string>
+
+    <!-- Google OAuth client, empty in the public source; see docs/DESIGN_STORAGE.md -->
+    <string name="drive_client_id" translatable="false"></string>
+    <string name="drive_client_secret" translatable="false"></string>
 </resources>

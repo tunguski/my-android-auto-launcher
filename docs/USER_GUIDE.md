@@ -10,7 +10,7 @@ tap away and always comes back to that black screen.
 
 ![The home screen as it looks while driving](previews/home.png)
 
-This guide covers version 1.9. Every picture in it is a real screenshot of that
+This guide covers version 2.0. Every picture in it is a real screenshot of that
 build on a 1280×720 head unit screen, taken automatically when the guide is
 produced, so nothing here is a mock-up.
 
@@ -198,16 +198,29 @@ navigation app is in front, so the notification is not optional.
 
 ## Where the trips are kept
 
-One CSV file per trip, in the private app folder on the unit storage:
+In a database on the unit, and nowhere else unless you ask for a backup.
+
+Each finished drive is one row holding its summary and its whole route, packed to
+about six bytes per recorded position. An hour of driving costs roughly 2 KB, and
+a decade of ordinary use stays under ten megabytes. Up to version 1.9 every trip
+was a separate CSV file costing thirty-one bytes a position; those files are
+imported automatically the first time this version starts, and **kept**, not
+deleted — the settings offer to remove them once you are satisfied, and say how
+much that would free.
+
+The drive in progress is the exception: it is written a position at a time and
+packed when it ends. That is what lets the unit lose power mid-drive and carry on
+with the same trip afterwards.
+
+To get a trip out of the unit, use **Export every trip now** in the settings. Each
+drive is written as a gzipped CSV — the same `epochSeconds,latitude,longitude` the
+old files had — under:
 
 ```
-Android/data/pl.matsuo.navi/files/trips/trip-20260115-071530.csv
+Android/data/pl.matsuo.navi/files/export/2026/2026-01-15T07-15-30.csv.gz
 ```
 
-Each line is `epochSeconds,latitude,longitude`. About 32 bytes per fix, so an hour
-of driving costs roughly 11 KB and a year of ordinary use a few megabytes.
-Nothing is uploaded anywhere. The files can be copied off over USB or with a file
-manager, and they open in any spreadsheet.
+which a file manager or a USB cable can reach, and which opens in any spreadsheet.
 
 ---
 
@@ -269,6 +282,52 @@ instead of a stock Android screen. On Android 10 and newer it asks the system
 directly; on older units, and whenever that fails, it opens the system home-screen
 picker instead, which is also available as the second button.
 
+## Backup
+
+![Backup and storage](previews/settings_bottom.png)
+
+**Off by default, and off means off:** no recorded drive leaves the unit until you
+choose otherwise. There are three settings.
+
+| Setting | What happens |
+| --- | --- |
+| **Off** | Trips stay in the database on the unit |
+| **Folder on this unit** | Each finished trip is also written to the export folder, where a file manager or a USB cable can reach it. No account, no network |
+| **Google Drive** | Each finished trip is copied to a *Navi simple* folder in your own Google Drive, sorted by year |
+
+Only finished drives are ever copied. The drive in progress is never uploaded, and
+a trip is copied once: files are named after the second the drive started, so
+there is nothing to merge and nothing to overwrite.
+
+### Signing in to Google Drive
+
+A head unit has no keyboard worth using, so the unit shows a short code and you
+type it on your phone: open the address shown, enter the code, approve. The app
+asks for the narrowest permission Google offers — it can see only the files it
+created itself, not the rest of your drive.
+
+> A build without a Google client configured says so instead of pretending to
+> work. The project README explains how to add one; it is not something the app
+> can do for you.
+
+### When the backup cannot keep up
+
+Nothing breaks. A failed upload is retried later, waiting longer each time up to
+six hours, and the settings line says what went wrong and how many trips are
+waiting. **Recording is never affected by any of it**: a backup that is off,
+misconfigured, unreachable or refusing to sign in costs an unsynced trip and
+nothing else.
+
+## Storage
+
+How many trips are stored and how much room they take. **Export every trip now**
+writes every drive to the export folder whatever the backup setting is, which is
+the simplest way to get the history onto a stick.
+
+If this unit was upgraded from an older version, the imported CSV files are listed
+here with the space they still occupy and a button to delete them. Nothing deletes
+them on its own.
+
 > If the launcher is not default, the unit will show its own screen after the
 > ignition is switched off and on again. This is the first thing to check if that
 > happens.
@@ -311,7 +370,9 @@ trips are kept.
 - No account, no sign-in, no analytics, no advertising, no crash reporting.
 - The only network request is the forecast, to open-meteo.com, carrying a position
   rounded to roughly a hundred metres and nothing else.
-- Recorded trips never leave the unit.
+- Recorded trips stay on the unit unless backup is switched on, which it is not by
+  default. Switched on, they go to your own Google Drive or to a folder on the
+  unit, and nowhere else.
 - The app asks for location and notifications, and for nothing else.
 
 ---
@@ -325,6 +386,8 @@ trips are kept.
 | The trip screen shows no route | Nothing recorded yet, or the GPS has no fix |
 | Distance stays at zero while driving | The unit has no GPS fix, or location permission was refused |
 | The recording notification is missing | Grant notification permission; Android hides it otherwise |
+| Trips are not reaching Google Drive | Settings → Backup: the line there says why. Recording carries on regardless |
+| The old CSV files are still on the unit | They are kept on purpose; Settings → Storage removes them |
 | The screen is too bright at night | Tap the clock, or lower the brightness slider |
 | Text is too small or too large | Settings → Clock size |
 | Spotify opens the Play Store | Spotify is not installed on the unit |

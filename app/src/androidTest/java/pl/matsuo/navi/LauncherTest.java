@@ -92,7 +92,12 @@ public abstract class LauncherTest {
                 .clear()
                 .commit();
         Trip.forget();
-        deleteContents(new File(context.getExternalFilesDir(null), "trips"));
+        TripDb.resetForTests();
+        context.deleteDatabase(TripDb.NAME);
+        // The trips folder holds the imported-CSV folder inside it now, so the
+        // whole tree goes rather than just its top-level entries.
+        deleteTree(new File(context.getExternalFilesDir(null), "trips"));
+        deleteTree(new File(context.getExternalFilesDir(null), FolderBackup.EXPORT));
         shell("pm grant " + PKG + " android.permission.ACCESS_FINE_LOCATION");
         shell("pm grant " + PKG + " android.permission.ACCESS_COARSE_LOCATION");
         // Without this the foreground service still runs, but its notification
@@ -137,12 +142,45 @@ public abstract class LauncherTest {
         }
     }
 
-    /** Writes the demo trip history into the folder the app records into. */
+    /**
+     * Puts the demo history where the app will find it, the way a real unit would have it.
+     *
+     * <p>The two town drives arrive as the CSV files earlier versions wrote and are imported, so
+     * every journey test also exercises the migration. The long drive is fed through the recorder
+     * fix by fix and deliberately left open, which is what a unit switched off mid-drive looks
+     * like.
+     */
     void installTripHistory() throws Exception {
         File dir = new File(context.getExternalFilesDir(null), "trips");
         deleteContents(dir);
         Trip.forget();
-        TripFixtures.writeAll(dir, System.currentTimeMillis());
+        TripDb db = TripDb.of(context);
+        long now = System.currentTimeMillis();
+
+        TripFixtures.write(
+                dir, TripFixtures.expand(TripFixtures.SHORT_ERRAND, now - 3 * 86400_000L));
+        TripFixtures.write(dir, TripFixtures.expand(TripFixtures.SHORT_COMMUTE, now - 86400_000L));
+        Migration.run(dir, db);
+
+        List<double[]> drive = TripFixtures.expand(TripFixtures.WARSAW_GDANSK, 0);
+        long start = now - 2 * 60_000L - (long) drive.get(drive.size() - 1)[0];
+        for (double[] fix : drive) {
+            Trip.record(db, start + (long) fix[0], fix[1], fix[2], Trip.NO_ACCURACY);
+        }
+    }
+
+    static void deleteTree(File dir) {
+        File[] files = dir.listFiles();
+        if (files == null) {
+            return;
+        }
+        for (File f : files) {
+            if (f.isDirectory()) {
+                deleteTree(f);
+            }
+            f.delete();
+        }
+        dir.delete();
     }
 
     // ───────────────────────────── starting a screen ─────────────────────────────

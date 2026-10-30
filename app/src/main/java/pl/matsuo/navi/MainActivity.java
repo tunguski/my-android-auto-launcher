@@ -712,7 +712,11 @@ public class MainActivity extends Activity {
     // ───────────────────────────── TRIP STATS ─────────────────────────────
 
     /** Which trip the screen shows; null means the one being recorded. */
-    private File shownTrip;
+    /** The trip whose route is on screen, or null for the drive in progress. */
+    private Long shownTrip;
+
+    /** How many past trips the history strip offers. */
+    private static final int HISTORY_LIMIT = 50;
 
     private void showStats() {
         if (statsView != null) {
@@ -777,24 +781,21 @@ public class MainActivity extends Activity {
         strip.setOrientation(LinearLayout.HORIZONTAL);
         strip.addView(
                 tripChip(null, getString(R.string.stats_current), Format.distance(Trip.meters)));
-        for (File f : Trip.list(this)) {
-            if (f.equals(Trip.currentFile())) {
+        // One indexed query, where this used to open and parse every trip file.
+        for (TripDb.Row r : TripDb.of(this).recent(HISTORY_LIMIT)) {
+            if (r.id == Trip.currentId()) {
                 continue;
-            }
-            Trip.Summary s = Trip.summarize(f);
-            if (s.points < 2) {
-                continue; // a single fix has no shape worth showing
             }
             String when =
                     new SimpleDateFormat("d.MM HH:mm", Locale.getDefault())
-                            .format(new Date(s.startedAt));
+                            .format(new Date(r.startedAt * 1000L));
             strip.addView(
                     tripChip(
-                            f,
+                            r.id,
                             when,
-                            Format.distance(s.meters)
+                            Format.distance(r.meters)
                                     + "  ·  "
-                                    + Format.duration(s.endedAt - s.startedAt)));
+                                    + Format.duration(r.durationMillis())));
         }
         HorizontalScrollView scroll = new HorizontalScrollView(this);
         scroll.setHorizontalScrollBarEnabled(false);
@@ -802,16 +803,17 @@ public class MainActivity extends Activity {
         return scroll;
     }
 
-    private View tripChip(File f, String title, String subtitle) {
+    private View tripChip(Long id, String title, String subtitle) {
         LinearLayout chip = new LinearLayout(this);
         chip.setOrientation(LinearLayout.VERTICAL);
         chip.setBackground(tileBg());
         chip.setPadding(px(0.025f), px(0.015f), px(0.025f), px(0.015f));
-        chip.addView(text(title, 0.035f, java.util.Objects.equals(f, shownTrip) ? TEXT : TEXT_DIM));
+        chip.addView(
+                text(title, 0.035f, java.util.Objects.equals(id, shownTrip) ? TEXT : TEXT_DIM));
         chip.addView(text(subtitle, 0.03f, TEXT_DIM));
         chip.setOnClickListener(
                 v -> {
-                    shownTrip = f;
+                    shownTrip = id;
                     updateStats();
                     refreshHistoryStrip();
                 });
@@ -837,18 +839,19 @@ public class MainActivity extends Activity {
             return;
         }
         List<double[]> route;
+        TripDb db = TripDb.of(this);
         if (shownTrip == null) {
             statTime.setText(
                     Trip.startedAt == 0
                             ? "--"
                             : Format.duration(System.currentTimeMillis() - Trip.startedAt));
             statDistance.setText(Format.distance(Trip.meters));
-            route = Trip.read(Trip.currentFile());
+            route = Trip.currentId() == 0 ? new ArrayList<>() : db.route(Trip.currentId());
         } else {
-            Trip.Summary s = Trip.summarize(shownTrip);
-            statTime.setText(Format.duration(s.endedAt - s.startedAt));
-            statDistance.setText(Format.distance(s.meters));
-            route = Trip.read(shownTrip);
+            TripDb.Row r = db.trip(shownTrip);
+            statTime.setText(Format.duration(r == null ? 0 : r.durationMillis()));
+            statDistance.setText(Format.distance(r == null ? 0 : r.meters));
+            route = db.route(shownTrip);
         }
         routeView.set(route);
         // One fix is a dot, not a route; say so instead of showing an empty box.
@@ -1087,6 +1090,9 @@ public class MainActivity extends Activity {
         pickerBtn.setOnClickListener(v -> safeStart(new Intent(Settings.ACTION_HOME_SETTINGS)));
         box.addView(pickerBtn, marginTop(px(0.02f)));
 
+        addBackupSection(box);
+        addStorageSection(box);
+
         box.addView(text(getString(R.string.look_hint), 0.035f, TEXT_DIM), marginTop(px(0.04f)));
 
         // The settings do not fit on a 720 px screen, so this screen scrolls.
@@ -1096,6 +1102,255 @@ public class MainActivity extends Activity {
         lookView = scroller;
         content.addView(lookView);
         homeView.setVisibility(View.INVISIBLE);
+    }
+
+    // ───────────────────────────── BACKUP AND STORAGE ─────────────────────────────
+
+    /**
+     * Where trips are copied to, if anywhere.
+     *
+     * <p>Off by default, and off means off: nothing leaves the unit. Choosing a backend only
+     * changes where finished trips are copied; recording to the database is unaffected by any of
+     * it, which is the point of keeping the whole thing behind {@link BackupRunner}.
+     */
+    private void addBackupSection(LinearLayout box) {
+        box.addView(
+                text(getString(R.string.backup_section), 0.045f, TEXT_DIM), marginTop(px(0.04f)));
+
+        String mode = BackupRunner.mode(prefs);
+        LinearLayout modes = new LinearLayout(this);
+        modes.setOrientation(LinearLayout.HORIZONTAL);
+        modes.addView(backupModeButton(BackupRunner.MODE_OFF, R.string.backup_off, mode));
+        modes.addView(backupModeButton(BackupRunner.MODE_FOLDER, R.string.backup_folder, mode));
+        modes.addView(backupModeButton(BackupRunner.MODE_DRIVE, R.string.backup_drive, mode));
+        box.addView(modes);
+
+        if (BackupRunner.MODE_DRIVE.equals(mode)) {
+            DriveBackup drive = new DriveBackup(this, prefs);
+            if (!drive.hasClient()) {
+                box.addView(text(getString(R.string.backup_no_client), 0.035f, WARN));
+            } else if (drive.signedIn()) {
+                box.addView(text(getString(R.string.backup_signed_in), 0.035f, TEXT_DIM));
+                box.addView(
+                        flatButton(
+                                getString(R.string.backup_sign_out),
+                                () -> {
+                                    drive.signOut();
+                                    showLook();
+                                }));
+            } else {
+                box.addView(flatButton(getString(R.string.backup_sign_in), this::startDriveSignIn));
+            }
+        }
+        if (BackupRunner.MODE_FOLDER.equals(mode)) {
+            box.addView(
+                    text(
+                            new FolderBackup(getExternalFilesDir(null)).root().getAbsolutePath(),
+                            0.03f,
+                            TEXT_DIM));
+        }
+        if (!BackupRunner.MODE_OFF.equals(mode)) {
+            box.addView(text(backupStatus(), 0.035f, TEXT_DIM));
+        }
+    }
+
+    /** One line saying whether the backup is keeping up, and why not. */
+    private String backupStatus() {
+        int waiting = BackupRunner.waiting(TripDb.of(this));
+        String error = prefs.getString(BackupRunner.PREF_LAST_ERROR, "");
+        if (!error.isEmpty()) {
+            return getString(R.string.backup_last_error, error);
+        }
+        if (waiting > 0) {
+            return getString(R.string.backup_waiting, waiting);
+        }
+        long ok = prefs.getLong(BackupRunner.PREF_LAST_OK, 0);
+        if (ok == 0) {
+            return getString(R.string.backup_all_done);
+        }
+        return getString(
+                R.string.backup_last_ok,
+                new SimpleDateFormat("d.MM HH:mm", Locale.getDefault()).format(new Date(ok)));
+    }
+
+    private TextView backupModeButton(String mode, int labelRes, String current) {
+        TextView t = text(getString(labelRes), 0.045f, mode.equals(current) ? TEXT : TEXT_DIM);
+        t.setGravity(Gravity.CENTER);
+        t.setPadding(px(0.03f), px(0.025f), px(0.03f), px(0.025f));
+        GradientDrawable bgd = tileBg();
+        if (mode.equals(current)) {
+            bgd.setStroke(Math.max(2, px(0.006f)), 0xFF7A7A7A);
+        }
+        t.setBackground(bgd);
+        t.setOnClickListener(
+                v -> {
+                    prefs.edit().putString(BackupRunner.PREF_MODE, mode).apply();
+                    BackupRunner.resetBackoff(prefs);
+                    BackupRunner.trigger(this, prefs);
+                    showLook();
+                });
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+        lp.setMargins(0, px(0.015f), px(0.02f), px(0.015f));
+        t.setLayoutParams(lp);
+        return t;
+    }
+
+    /**
+     * Signs in to Google with the limited-input device flow.
+     *
+     * <p>The unit shows a short code and the owner types it on their phone, because a head unit has
+     * no keyboard worth using and may have no browser at all. Everything happens on a background
+     * thread; a failure puts a message on this screen and changes nothing else.
+     */
+    private void startDriveSignIn() {
+        final DriveBackup drive = new DriveBackup(this, prefs);
+        final TextView status = text(getString(R.string.backup_waiting_for_sign_in), 0.04f, TEXT);
+        AlertDialog dialog =
+                new AlertDialog.Builder(this)
+                        .setView(status)
+                        .setNegativeButton(android.R.string.cancel, null)
+                        .create();
+        dialog.show();
+
+        new Thread(
+                        () -> {
+                            try {
+                                DriveApi.DeviceCode code = drive.requestCode();
+                                ui.post(
+                                        () ->
+                                                status.setText(
+                                                        getString(R.string.backup_code_title)
+                                                                + "\n"
+                                                                + code.verificationUrl
+                                                                + "\n\n"
+                                                                + code.userCode
+                                                                + "\n\n"
+                                                                + getString(
+                                                                        R.string
+                                                                                .backup_code_hint)));
+                                pollForSignIn(drive, code, dialog, status);
+                            } catch (Throwable t) {
+                                signInFailed(dialog, String.valueOf(t.getMessage()));
+                            }
+                        },
+                        "drive-sign-in")
+                .start();
+    }
+
+    private void pollForSignIn(
+            DriveBackup drive, DriveApi.DeviceCode code, AlertDialog dialog, TextView status) {
+        long deadline = System.currentTimeMillis() + code.expiresInSeconds * 1000L;
+        long waitMs = Math.max(1, code.intervalSeconds) * 1000L;
+        while (System.currentTimeMillis() < deadline && dialog.isShowing()) {
+            try {
+                Thread.sleep(waitMs);
+                DriveApi.Poll state = drive.poll(code.deviceCode);
+                if (state == null) {
+                    ui.post(
+                            () -> {
+                                dialog.dismiss();
+                                toast(getString(R.string.backup_sign_in_done));
+                                BackupRunner.resetBackoff(prefs);
+                                BackupRunner.trigger(this, prefs);
+                                showLook();
+                            });
+                    return;
+                }
+                if (state == DriveApi.Poll.SLOW_DOWN) {
+                    waitMs += 5000L;
+                } else if (state == DriveApi.Poll.DENIED || state == DriveApi.Poll.EXPIRED) {
+                    signInFailed(dialog, state.name().toLowerCase(Locale.US));
+                    return;
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            } catch (Throwable t) {
+                signInFailed(dialog, String.valueOf(t.getMessage()));
+                return;
+            }
+        }
+    }
+
+    private void signInFailed(AlertDialog dialog, String reason) {
+        ui.post(
+                () -> {
+                    dialog.dismiss();
+                    toast(getString(R.string.backup_sign_in_failed, reason));
+                });
+    }
+
+    private void toast(String message) {
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+    }
+
+    /** What the trips take up, and the leftovers of the CSV import. */
+    private void addStorageSection(LinearLayout box) {
+        box.addView(
+                text(getString(R.string.storage_section), 0.045f, TEXT_DIM), marginTop(px(0.04f)));
+
+        TripDb db = TripDb.of(this);
+        File dbFile = getDatabasePath(TripDb.NAME);
+        box.addView(
+                text(
+                        getString(R.string.storage_trips, db.count(), bytes(dbFile.length())),
+                        0.035f,
+                        TEXT_DIM));
+        box.addView(flatButton(getString(R.string.backup_export_now), this::exportEverything));
+
+        long imported = Migration.importedBytes(Migration.csvDir(this));
+        if (imported > 0) {
+            box.addView(
+                    text(getString(R.string.storage_imported, bytes(imported)), 0.035f, TEXT_DIM));
+            box.addView(
+                    flatButton(
+                            getString(R.string.storage_delete_imported),
+                            () -> {
+                                int n = Migration.deleteImported(Migration.csvDir(this));
+                                toast(getString(R.string.storage_deleted, n));
+                                showLook();
+                            }));
+        }
+    }
+
+    /** A size a person can read. */
+    static String bytes(long n) {
+        if (n < 1024) {
+            return n + " B";
+        }
+        if (n < 1024 * 1024) {
+            return String.format(Locale.getDefault(), "%.1f KB", n / 1024.0);
+        }
+        return String.format(Locale.getDefault(), "%.1f MB", n / (1024.0 * 1024));
+    }
+
+    /** Writes every stored trip into the export folder, whatever the backup mode is. */
+    private void exportEverything() {
+        toast(getString(R.string.backup_exporting));
+        final Context app = getApplicationContext();
+        new Thread(
+                        () -> {
+                            int done = 0;
+                            try {
+                                TripDb db = TripDb.of(app);
+                                FolderBackup folder =
+                                        new FolderBackup(app.getExternalFilesDir(null));
+                                for (TripDb.Row r : db.recent(Integer.MAX_VALUE)) {
+                                    byte[] artifact = Artifact.build(Track.decode(db.track(r.id)));
+                                    folder.upload(
+                                            Artifact.year(r.startedAt),
+                                            Artifact.name(r.startedAt),
+                                            artifact);
+                                    done++;
+                                }
+                            } catch (Throwable ignored) {
+                                // Report what did get out rather than nothing at all.
+                            }
+                            final int exported = done;
+                            ui.post(() -> toast(getString(R.string.backup_exported, exported)));
+                        },
+                        "export")
+                .start();
     }
 
     /**

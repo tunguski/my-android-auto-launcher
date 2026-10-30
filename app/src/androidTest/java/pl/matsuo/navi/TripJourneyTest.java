@@ -49,18 +49,56 @@ public class TripJourneyTest extends LauncherTest {
     @Test
     public void theDriveInProgressIsPickedUpFromDisk() throws Exception {
         installTripHistory();
-        // The newest demo trip ended two minutes ago, so the service picks it up
-        // as the drive in progress instead of starting a fresh one.
-        Trip.resume(context);
+        // The long demo drive was fed through the recorder and left open, as it
+        // would be on a unit switched off mid-drive. Forget it and resume, which
+        // is exactly what the service does when it starts again.
+        long before = Trip.currentId();
+        Trip.forget();
+        Trip.resume(TripDb.of(context), System.currentTimeMillis());
         open("trip");
 
-        assertEquals("the stored drive was not resumed", Trip.list(context)[0], Trip.currentFile());
+        assertEquals("the stored drive was not resumed", before, Trip.currentId());
         assertTrue(
                 "the resumed distance is not on the screen: " + Format.distance(Trip.meters),
                 hasTextContaining(Format.distance(Trip.meters)));
         assertTrue(
                 "the resumed drive is not about 320 km: " + Trip.meters,
                 Trip.meters > 310_000 && Trip.meters < 330_000);
+    }
+
+    @Test
+    public void theOldCsvFilesAreImportedAndKept() throws Exception {
+        installTripHistory();
+        // installTripHistory writes the two town drives as the CSV files earlier
+        // versions wrote; the migration should have taken them into the database
+        // and moved the files aside rather than deleting them.
+        File csvDir = Migration.csvDir(context);
+        assertEquals("a CSV was left unimported", 0, Migration.pending(csvDir).length);
+        assertTrue("the imported files were not kept", Migration.importedBytes(csvDir) > 0);
+
+        open("trip");
+        assertVisible(R.string.stats_history);
+        assertTrue("an imported drive is missing from the history", hasTextContaining("9.0 km"));
+        assertTrue("an imported drive is missing from the history", hasTextContaining("2.8 km"));
+    }
+
+    @Test
+    public void importingTwiceChangesNothing() throws Exception {
+        installTripHistory();
+        TripDb db = TripDb.of(context);
+        int before = db.count();
+
+        // Put the files back where they were and run it again.
+        File csvDir = Migration.csvDir(context);
+        File imported = new File(csvDir, Migration.IMPORTED);
+        for (File f : imported.listFiles()) {
+            assertTrue(f.renameTo(new File(csvDir, f.getName())));
+        }
+        Migration.Result again = Migration.run(csvDir, db);
+
+        assertEquals("a trip was imported twice", before, db.count());
+        assertEquals(0, again.imported);
+        assertEquals(2, again.alreadyThere);
     }
 
     @Test
@@ -117,11 +155,51 @@ public class TripJourneyTest extends LauncherTest {
     }
 
     @Test
-    public void theTripFilesAreOneCsvPerDrive() throws Exception {
+    public void everyDriveIsOneRowInTheDatabase() throws Exception {
         installTripHistory();
-        File dir = new File(context.getExternalFilesDir(null), "trips");
-        File[] files = dir.listFiles((d, n) -> n.endsWith(".csv"));
-        assertEquals(3, files == null ? 0 : files.length);
+        TripDb db = TripDb.of(context);
+        // Two imported town drives plus the one in progress.
+        assertEquals(3, db.count());
+        assertEquals(2, db.recent(50).size());
+        assertEquals("the drive in progress is not history", 2, db.recent(50).size());
+    }
+
+    /** The same three drives as one CSV file each: 47,744 bytes of data in 4 KiB blocks. */
+    private static final long AS_CSV_ON_DISK = 53_248;
+
+    @Test
+    public void theDatabaseIsSmallerThanTheFilesItReplaced() throws Exception {
+        installTripHistory();
+        Trip.closeCurrent(TripDb.of(context));
+
+        // The write-ahead log counts: space hidden there is space used.
+        File file = context.getDatabasePath(TripDb.NAME);
+        File wal = new File(file.getParentFile(), TripDb.NAME + "-wal");
+        long used = file.length() + (wal.exists() ? wal.length() : 0);
+
+        assertTrue("the database is empty", file.length() > 0);
+        assertTrue(
+                "storage grew: " + used + " bytes against " + AS_CSV_ON_DISK + " as CSV files",
+                used < AS_CSV_ON_DISK);
+    }
+
+    @Test
+    public void finishingADriveGivesBackTheSpaceItsWorkingRowsUsed() throws Exception {
+        installTripHistory(); // leaves the long drive open, thousands of working rows
+        TripDb db = TripDb.of(context);
+        File file = context.getDatabasePath(TripDb.NAME);
+        File wal = new File(file.getParentFile(), TripDb.NAME + "-wal");
+        long whileDriving = file.length() + (wal.exists() ? wal.length() : 0);
+
+        Trip.closeCurrent(db);
+
+        long afterwards = file.length() + (wal.exists() ? wal.length() : 0);
+        assertTrue(
+                "closing a drive should release its working rows: "
+                        + whileDriving
+                        + " -> "
+                        + afterwards,
+                afterwards < whileDriving);
     }
 
     @Test

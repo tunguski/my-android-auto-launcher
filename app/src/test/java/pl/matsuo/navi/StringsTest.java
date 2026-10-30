@@ -41,7 +41,18 @@ public class StringsTest {
                             "clock_date_format", // a SimpleDateFormat pattern
                             "notif_text", // placeholders and separators only
                             "lang_en", // every language name is in its own language
-                            "lang_pl"));
+                            "lang_pl",
+                            "drive_client_id",
+                            "drive_client_secret"));
+
+    /**
+     * Build configuration that lives in the resources and is empty in the public source.
+     *
+     * <p>An empty Google client id is what makes the Drive backup announce itself as not set up
+     * rather than failing somewhere less visible.
+     */
+    private static final Set<String> CONFIG =
+            new HashSet<>(Arrays.asList("drive_client_id", "drive_client_secret"));
 
     /** Used from somewhere other than Java code. */
     private static final Set<String> USED_ELSEWHERE = new HashSet<>(Arrays.asList("app_name"));
@@ -168,6 +179,9 @@ public class StringsTest {
     public void noStringIsEmpty() throws IOException {
         for (String qualifier : new String[] {"values", "values-pl"}) {
             for (Map.Entry<String, String> e : strings(qualifier).entrySet()) {
+                if (CONFIG.contains(e.getKey())) {
+                    continue;
+                }
                 assertFalse(
                         qualifier + "/" + e.getKey() + " is empty", e.getValue().trim().isEmpty());
             }
@@ -181,8 +195,10 @@ public class StringsTest {
         // Only the shipped sources count: a string that just happens to be
         // referenced from a test is still dead weight in the app.
         File src = new File(moduleDir(), "src/main");
-        // Not android.R.string.ok and friends: those come from the platform.
-        Pattern java = Pattern.compile("(?<!android\\.)R\\.string\\.([a-z_0-9]+)");
+        // Not android.R.string.ok and friends: those come from the platform. The
+        // whitespace allowances matter because the formatter wraps long lines
+        // between R.string and the name, which once made a used string look dead.
+        Pattern java = Pattern.compile("(?<!android\\.)R\\s*\\.\\s*string\\s*\\.\\s*([a-z_0-9]+)");
         Pattern xml = Pattern.compile("@string/([a-z_0-9]+)");
         try (Stream<Path> paths = Files.walk(src.toPath())) {
             for (Path p : (Iterable<Path>) paths.filter(Files::isRegularFile)::iterator) {

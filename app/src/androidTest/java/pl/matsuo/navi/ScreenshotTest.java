@@ -81,14 +81,12 @@ public class ScreenshotTest extends LauncherTest {
     public void shot06Trip() throws Exception {
         // As on the head unit when the ignition goes off and on again mid-drive:
         // the service picks the trip up from disk and keeps counting.
-        Trip.resume(context);
         open("trip", MainActivity.EXTRA_HOME_POINT, "52.2297,21.0122,Warszawa");
         screenshot("trip");
     }
 
     @Test
     public void shot06bTripEarlierOne() throws Exception {
-        Trip.resume(context);
         open("trip", MainActivity.EXTRA_HOME_POINT, "52.2297,21.0122,Warszawa");
         // The oldest chip: the short errand, to show what a town drive looks like.
         List<UiObject2> chips =

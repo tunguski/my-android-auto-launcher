@@ -180,7 +180,15 @@ in both formats, a zip of the previews and a `SHA256SUMS.txt`.
 app/src/main/AndroidManifest.xml          HOME + LAUNCHER filters, landscape, singleTask
 app/src/main/java/pl/matsuo/navi/
     MainActivity.java                     the screens, the weather fetch, the settings
-    Trip.java                             trip recording and storage, Context-free core
+    Trip.java                             the recording rules, free of any storage
+    TripStore.java                        the little storage needs
+    TripDb.java                           SQLite: trips, packed routes, backup state
+    Track.java                            the packed route format, 6 bytes a fix
+    Migration.java                        imports the CSV trips of earlier versions
+    Artifact.java                         a trip as a gzipped CSV, for export and backup
+    Backup.java, FolderBackup.java        where a finished trip can be copied to
+    DriveApi.java, DriveBackup.java       Google Drive, device-flow sign-in
+    BackupPolicy.java, BackupRunner.java  when to retry, and doing it off the main thread
     TripService.java                      foreground service that feeds Trip
     Geo.java                              distances and the route projection, plain Java
     Wx.java                               warning rules and weather wording, plain Java
@@ -206,8 +214,33 @@ docs/DESIGN_STORAGE.md                    proposal: SQLite storage and Drive syn
 ```
 
 Settings live in `SharedPreferences("navi")`: `size` (0–3), `bright` (15–100), `dim`,
-`lang`, `lat`, `lon`, `weather` (cached JSON), `place`, `home_lat`, `home_lon`, `home_name`.
-Recorded trips live in `getExternalFilesDir(null)/trips`, one CSV per trip.
+`lang`, `lat`, `lon`, `weather` (cached JSON), `place`, `home_lat`, `home_lon`, `home_name`,
+`backup_mode` and the Drive tokens.
+
+Trips live in SQLite, in internal storage. A finished drive is one row carrying its
+summary and its whole route packed by `Track` at about six bytes a fix; the drive in
+progress accumulates a row per fix in `open_fix` and is packed when it ends, because
+appending to a blob every ten seconds would mean rewriting it every ten seconds. The
+CSV trips of version 1.9 and earlier are imported on first start and kept, not deleted.
+[docs/DESIGN_STORAGE.md](docs/DESIGN_STORAGE.md) has the measurements behind all of that
+— including why the obvious schema, a row per fix, costs more than the CSV it replaces.
+
+### Backing up
+
+Off by default. `Backup` has two implementations: a folder on the unit, which needs no
+account and is what proves the machinery, and Google Drive over `HttpURLConnection` with
+the limited-input device flow, because a head unit has no keyboard worth using. Uploads
+run on their own thread through `BackupRunner`, which swallows every throwable and backs
+off to six-hourly; nothing it does can affect recording.
+
+Google Drive needs an OAuth client, which is not in this source. To use it, create one of
+type *TV and Limited Input devices* in a Google Cloud project with the Drive API enabled,
+and put its id and secret into `drive_client_id` and `drive_client_secret` in
+`app/src/main/res/values/strings.xml`. Without them the app says Drive is not configured
+rather than failing later. Before relying on it, check two things the design document
+flags as unverified: whether the device flow accepts the `drive.file` scope at all, and
+whether an OAuth client left in *Testing* status expires its refresh tokens after a few
+days.
 
 `targetSdk` is deliberately 34, not 35, to avoid Android 15's forced edge-to-edge layout.
 

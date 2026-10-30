@@ -7,6 +7,7 @@ import static org.junit.Assert.assertTrue;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.LargeTest;
+import androidx.test.uiautomator.By;
 import androidx.test.uiautomator.UiObject2;
 import java.util.List;
 import org.junit.Before;
@@ -119,8 +120,9 @@ public class HomeJourneyTest extends LauncherTest {
     @Test
     public void theAppListPutsTheOriginalHomeScreensFirst() throws Exception {
         tapText(R.string.tile_apps);
-        assertTrue(
-                "the original home screens are not called out",
-                hasTextContaining(str(R.string.apps_original_home).replace("%1$s", "").trim()));
+        assertVisible(R.string.apps_title);
+        // The grid loads an icon for every app on the unit, so this waits for the
+        // entry rather than looking once and giving up.
+        waitFor(By.textContains(str(R.string.apps_original_home).replace("%1$s", "").trim()));
     }
 }

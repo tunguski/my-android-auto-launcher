@@ -1,6 +1,17 @@
 # Design: SQLite storage and optional Google Drive sync
 
-Status: proposal. Nothing in this document is implemented yet.
+Status: implemented in 2.0, with the exceptions noted below.
+
+Sections 1 to 6 describe what the app now does. Section 7 is still a proposal in
+one respect: the Drive backend is written and wired up, but the three questions
+in 7.4 have not been answered, so nobody has yet signed a head unit in to Google
+with it. The folder backend works and needs no account.
+
+Two things changed once the code met a device, and both are in the code rather
+than here: a trip that is closed twice must not repack itself from working rows
+that are gone, and reclaiming space needs a WAL checkpoint as well as an
+incremental vacuum - without the checkpoint the database kept seventeen pages and
+a four-hundred-kilobyte log where ten pages would do.
 
 It covers four things the current CSV-per-trip storage does not answer well: where
 trip data should live, how to move what already exists without losing any of it,

@@ -33,6 +33,28 @@ public class TripService extends Service {
 
     private LocationManager lm;
     private LocationListener listener;
+    private TripDb db;
+    private android.content.SharedPreferences prefs;
+
+    /**
+     * Imports the CSV trips of earlier versions, if any are still there.
+     *
+     * <p>On a thread of its own: it is quick, but it is file work, and nothing about starting to
+     * record should wait for it. It costs one directory listing once everything has been imported.
+     */
+    private void importOldTripsInTheBackground() {
+        new Thread(
+                        () -> {
+                            try {
+                                Migration.run(Migration.csvDir(TripService.this), db);
+                            } catch (Throwable ignored) {
+                                // Old files are a bonus; failing to read them must
+                                // never stop the unit from recording today's drive.
+                            }
+                        },
+                        "csv-import")
+                .start();
+    }
 
     public static void start(Context c) {
         Intent i = new Intent(c, TripService.class);
@@ -46,9 +68,12 @@ public class TripService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
-        Trip.resume(this); // continue the drive after a process restart
+        db = TripDb.of(this);
+        prefs = getSharedPreferences(MainActivity.PREFS, MODE_PRIVATE);
+        Trip.resume(db, System.currentTimeMillis()); // carry on after a process restart
         createChannel();
         startInForeground();
+        importOldTripsInTheBackground();
 
         lm = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
         if (lm == null) {
@@ -60,8 +85,12 @@ public class TripService extends Service {
                 new LocationListener() {
                     @Override
                     public void onLocationChanged(Location location) {
-                        Trip.record(TripService.this, location);
+                        Trip.record(db, location);
                         updateNotification();
+                        // Only finished trips are ever uploaded, so this never
+                        // touches the drive in progress, and it never blocks:
+                        // it hands the work to its own thread or does nothing.
+                        BackupRunner.trigger(TripService.this, prefs);
                     }
 
                     @Override

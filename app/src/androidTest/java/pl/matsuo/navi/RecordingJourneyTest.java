@@ -37,7 +37,7 @@ public class RecordingJourneyTest extends LauncherTest {
     private void restartRecording() throws Exception {
         shell("am stopservice " + PKG + "/.TripService");
         Trip.forget();
-        Trip.resume(context); // the first thing TripService.onCreate does
+        Trip.resume(TripDb.of(context), System.currentTimeMillis()); // what onCreate does first
         TripService.start(context);
     }
 
@@ -118,8 +118,15 @@ public class RecordingJourneyTest extends LauncherTest {
         shell("am start -a android.settings.SETTINGS");
         device.waitForIdle();
         device.pressHome();
-        device.waitForIdle();
-        assertEquals(PKG, device.getCurrentPackageName());
+        // The other app takes a moment to go; waiting for the launcher to be
+        // back is the assertion, not a race against the window animation.
+        assertTrue(
+                "HOME did not come back to the launcher",
+                device.wait(
+                        androidx.test.uiautomator.Until.hasObject(
+                                androidx.test.uiautomator.By.pkg(PKG)),
+                        TIMEOUT_MS));
+        assertVisible(R.string.tile_nav);
         String services = shell("dumpsys activity services " + PKG);
         assertTrue(
                 "recording stopped while another app was in front",
