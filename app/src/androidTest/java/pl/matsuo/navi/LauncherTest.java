@@ -56,6 +56,9 @@ public abstract class LauncherTest {
         // A notification shade left open by an earlier test covers everything,
         // and then every selector finds com.android.systemui instead.
         shell("cmd statusbar collapse");
+        // Android shows a one-time "Viewing full screen" card the first time an
+        // app hides the system bars. It would land in the middle of a screenshot.
+        shell("settings put secure immersive_mode_confirmations confirmed");
         shell("cmd package set-home-activity " + ACTIVITY);
         copyWeatherFixtures();
     }

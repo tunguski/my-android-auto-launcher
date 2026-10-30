@@ -38,6 +38,8 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
+import android.view.WindowInsets;
+import android.view.WindowInsetsController;
 import android.view.WindowManager;
 import android.widget.BaseAdapter;
 import android.widget.EditText;
@@ -273,12 +275,34 @@ public class MainActivity extends Activity {
         }
     }
 
+    /**
+     * Asks for the whole screen: no status bar, no navigation bar, and no reappearance until the
+     * user swipes a bar in deliberately.
+     *
+     * <p>This only governs the bars Android itself draws. A head unit whose ROM paints its own
+     * toolbar as a system overlay keeps painting it; that has to be turned off on the unit.
+     */
     @SuppressWarnings("deprecation")
     private void hideBars() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            getWindow().setDecorFitsSystemWindows(false);
+            WindowInsetsController bars = getWindow().getInsetsController();
+            if (bars != null) {
+                bars.hide(WindowInsets.Type.systemBars());
+                bars.setSystemBarsBehavior(
+                        WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+                return;
+            }
+        }
         getWindow()
                 .getDecorView()
                 .setSystemUiVisibility(
-                        View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_FULLSCREEN);
+                        View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                                | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                                | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                                | View.SYSTEM_UI_FLAG_FULLSCREEN
+                                | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
     }
 
     private void loadScale() {
@@ -1256,10 +1280,15 @@ public class MainActivity extends Activity {
                 c.setOrientation(LinearLayout.VERTICAL);
                 c.setGravity(Gravity.CENTER_HORIZONTAL);
                 c.setPadding(px(0.025f), px(0.015f), px(0.025f), px(0.015f));
-                c.addView(text(ht.getString(i).substring(11, 13), 0.035f, TEXT_DIM));
-                c.addView(text(Math.round(hv.getDouble(i)) + "°", 0.05f, TEXT));
+                c.addView(centred(text(ht.getString(i).substring(11, 13), 0.035f, TEXT_DIM)));
+                c.addView(centred(text(Math.round(hv.getDouble(i)) + "°", 0.05f, TEXT)));
                 int pr = hp.isNull(i) ? 0 : hp.getInt(i);
-                c.addView(text(pr >= 20 ? pr + "%" : shortDescribe(hc.getInt(i)), 0.03f, TEXT_DIM));
+                c.addView(
+                        centred(
+                                text(
+                                        pr >= 20 ? pr + "%" : shortDescribe(hc.getInt(i)),
+                                        0.03f,
+                                        TEXT_DIM)));
                 hours.addView(c);
             }
             HorizontalScrollView hs = new HorizontalScrollView(this);
@@ -1283,22 +1312,25 @@ public class MainActivity extends Activity {
                 c.setOrientation(LinearLayout.VERTICAL);
                 c.setGravity(Gravity.CENTER_HORIZONTAL);
                 c.setBackground(tileBg());
-                c.setPadding(0, px(0.02f), 0, px(0.02f));
-                c.addView(text(name, 0.04f, TEXT_DIM));
+                c.setPadding(px(0.025f), px(0.02f), px(0.025f), px(0.02f));
+                c.addView(centred(text(name, 0.04f, TEXT_DIM)));
                 c.addView(
-                        text(
-                                Math.round(dmax.getDouble(i))
-                                        + "° / "
-                                        + Math.round(dmin.getDouble(i))
-                                        + "°",
-                                0.045f,
-                                TEXT));
+                        centred(
+                                text(
+                                        Math.round(dmax.getDouble(i))
+                                                + "° / "
+                                                + Math.round(dmin.getDouble(i))
+                                                + "°",
+                                        0.045f,
+                                        TEXT)));
                 int pr = dp.isNull(i) ? 0 : dp.getInt(i);
                 c.addView(
-                        text(
-                                shortDescribe(dc.getInt(i)) + (pr >= 20 ? "  " + pr + "%" : ""),
-                                0.032f,
-                                TEXT_DIM));
+                        centred(
+                                text(
+                                        shortDescribe(dc.getInt(i))
+                                                + (pr >= 20 ? "  " + pr + "%" : ""),
+                                        0.032f,
+                                        TEXT_DIM)));
                 LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -2, 1f);
                 lp.setMargins(px(0.012f), 0, px(0.012f), 0);
                 days.addView(c, lp);
@@ -1326,6 +1358,19 @@ public class MainActivity extends Activity {
         t.setTextColor(color);
         t.setTextSize(TypedValue.COMPLEX_UNIT_PX, H * size);
         t.setIncludeFontPadding(false);
+        return t;
+    }
+
+    /**
+     * Centres a line of text inside its column.
+     *
+     * <p>A vertical LinearLayout hands its children MATCH_PARENT width, so a TextView fills the
+     * column and draws its text hard against the left edge however the container gravity is set.
+     * Setting the gravity on the TextView itself is what actually centres it. This has caught out
+     * the tile labels, the date line and the forecast strips in turn.
+     */
+    private TextView centred(TextView t) {
+        t.setGravity(Gravity.CENTER_HORIZONTAL);
         return t;
     }
 
