@@ -5,10 +5,19 @@ build/
 *.apk
 *.aab
 
-# Signing material - never commit a key
+# Signing material and anything else that smells of a credential - never commit
 *.jks
 *.keystore
+*.p12
+*.pem
+*.key
 keystore.properties
+.env
+.env.*
+secrets.*
+*secret*.json
+*credentials*.json
+service-account*.json
 
 # Local SDK paths
 local.properties
