@@ -50,7 +50,18 @@ final class TripDb extends SQLiteOpenHelper implements TripStore {
     }
 
     TripDb(Context c) {
-        super(c, NAME, null, VERSION);
+        this(c, NAME);
+    }
+
+    /**
+     * Opens a database by name.
+     *
+     * <p>Only the shared one matters in the app. Tests use a name of their own so that deleting and
+     * recreating the file cannot race the recording service, which holds the shared instance open
+     * and writes to it every second.
+     */
+    TripDb(Context c, String name) {
+        super(c, name, null, VERSION);
         setWriteAheadLoggingEnabled(true);
     }
 

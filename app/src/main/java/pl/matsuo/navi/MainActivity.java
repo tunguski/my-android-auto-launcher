@@ -855,7 +855,13 @@ public class MainActivity extends Activity {
         }
         routeView.set(route);
         // One fix is a dot, not a route; say so instead of showing an empty box.
+        // Before the first drive the usual reason is that the receiver has not
+        // found the sky yet, which is worth saying rather than leaving the driver
+        // wondering whether anything is recording at all.
         routeEmpty.setVisibility(route.size() < 2 ? View.VISIBLE : View.GONE);
+        boolean nothingYet = shownTrip == null && Trip.currentId() == 0;
+        routeEmpty.setText(
+                getString(nothingYet ? R.string.stats_waiting_gps : R.string.stats_no_route));
         // The "not set" note is a sentence, not a figure: it gets the small type.
         boolean homeSet = !Float.isNaN(prefs.getFloat("home_lat", Float.NaN));
         statHome.setTextSize(TypedValue.COMPLEX_UNIT_PX, H * (homeSet ? 0.07f : 0.035f));
@@ -1090,6 +1096,7 @@ public class MainActivity extends Activity {
         pickerBtn.setOnClickListener(v -> safeStart(new Intent(Settings.ACTION_HOME_SETTINGS)));
         box.addView(pickerBtn, marginTop(px(0.02f)));
 
+        addRecordingSection(box);
         addBackupSection(box);
         addStorageSection(box);
 
@@ -1102,6 +1109,66 @@ public class MainActivity extends Activity {
         lookView = scroller;
         content.addView(lookView);
         homeView.setVisibility(View.INVISIBLE);
+    }
+
+    // ───────────────────────────── RECORDING ─────────────────────────────
+
+    /**
+     * How closely the route is followed, and whether the launcher claims the screen after a boot.
+     *
+     * <p>Both of these exist because of what a parked car does: it cold-boots into the ROM own
+     * screen, and its receiver has forgotten where the satellites are. Coming up at boot starts the
+     * GPS engine while the driver is still fastening the seatbelt, which is the only thing an app
+     * can do about a cold receiver.
+     */
+    private void addRecordingSection(LinearLayout box) {
+        box.addView(
+                text(getString(R.string.record_section), 0.045f, TEXT_DIM), marginTop(px(0.04f)));
+        box.addView(text(getString(R.string.record_interval), 0.035f, TEXT_DIM));
+
+        int current = TripService.intervalMillis(prefs) / 1000;
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        for (int seconds : TripService.INTERVALS_S) {
+            row.addView(intervalButton(seconds, current));
+        }
+        box.addView(row);
+
+        boolean bootHome = prefs.getBoolean(BootReceiver.PREF_BOOT_HOME, true);
+        box.addView(
+                flatButton(
+                        getString(
+                                R.string.record_boot_home,
+                                getString(bootHome ? R.string.look_on : R.string.look_off)),
+                        () -> {
+                            prefs.edit().putBoolean(BootReceiver.PREF_BOOT_HOME, !bootHome).apply();
+                            showLook();
+                        }));
+    }
+
+    private TextView intervalButton(int seconds, int current) {
+        TextView t =
+                text(
+                        getString(R.string.record_seconds, seconds),
+                        0.045f,
+                        seconds == current ? TEXT : TEXT_DIM);
+        t.setGravity(Gravity.CENTER);
+        t.setPadding(px(0.04f), px(0.025f), px(0.04f), px(0.025f));
+        GradientDrawable bgd = tileBg();
+        if (seconds == current) {
+            bgd.setStroke(Math.max(2, px(0.006f)), 0xFF7A7A7A);
+        }
+        t.setBackground(bgd);
+        t.setOnClickListener(
+                v -> {
+                    prefs.edit().putInt(TripService.PREF_INTERVAL, seconds).apply();
+                    TripService.reapplyInterval(this);
+                    showLook();
+                });
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+        lp.setMargins(0, px(0.015f), px(0.02f), px(0.015f));
+        t.setLayoutParams(lp);
+        return t;
     }
 
     // ───────────────────────────── BACKUP AND STORAGE ─────────────────────────────

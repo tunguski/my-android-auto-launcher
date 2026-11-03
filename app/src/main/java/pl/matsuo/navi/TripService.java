@@ -28,8 +28,28 @@ public class TripService extends Service {
     private static final String CHANNEL = "trip";
     private static final int NOTIFICATION_ID = 1;
 
-    /** One fix every ten seconds. */
-    private static final long INTERVAL_MS = 10_000L;
+    /** How often a position is asked for, in seconds; the first is the default. */
+    static final int[] INTERVALS_S = {1, 3, 10};
+
+    static final String PREF_INTERVAL = "fix_interval";
+
+    /**
+     * How often to ask the receiver for a position.
+     *
+     * <p>Ten seconds was too coarse: at a hundred kilometres an hour that is nearly three hundred
+     * metres between points, which cuts every corner. One second is the default now. It is only the
+     * rate the engine reports at - what reaches the database is still thinned by the distance and
+     * speed rules, so a motorway hour costs about 20 KB and a town hour far less.
+     */
+    static int intervalMillis(android.content.SharedPreferences prefs) {
+        int seconds = prefs.getInt(PREF_INTERVAL, INTERVALS_S[0]);
+        for (int allowed : INTERVALS_S) {
+            if (allowed == seconds) {
+                return seconds * 1000;
+            }
+        }
+        return INTERVALS_S[0] * 1000;
+    }
 
     private LocationManager lm;
     private LocationListener listener;
@@ -104,10 +124,29 @@ public class TripService extends Service {
                 };
         try {
             lm.requestLocationUpdates(
-                    LocationManager.GPS_PROVIDER, INTERVAL_MS, 0, listener, Looper.getMainLooper());
+                    LocationManager.GPS_PROVIDER,
+                    intervalMillis(prefs),
+                    0,
+                    listener,
+                    Looper.getMainLooper());
         } catch (SecurityException | IllegalArgumentException ignored) {
             // No permission or no GPS provider on this unit.
         }
+    }
+
+    /**
+     * Applies a changed recording interval without waiting for the next restart.
+     *
+     * <p>Asking again with a new interval replaces the previous request for the same listener, so
+     * there is nothing to remove first.
+     */
+    static void reapplyInterval(Context c) {
+        try {
+            c.stopService(new Intent(c, TripService.class));
+        } catch (Throwable ignored) {
+            // Worst case the old interval stays until the next start.
+        }
+        start(c);
     }
 
     @Override

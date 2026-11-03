@@ -68,6 +68,7 @@
     <string name="stats_to_home">Do domu</string>
     <string name="stats_no_home">dom nieustawiony</string>
     <string name="stats_no_route">Brak zapisanej trasy</string>
+    <string name="stats_waiting_gps">Czekam na pozycję GPS…</string>
     <string name="stats_history">Wcześniejsze trasy</string>
     <string name="stats_route_desc">Kształt zapisanej trasy</string>
     <string name="stats_current">teraz</string>
@@ -81,6 +82,12 @@
 
     <string name="notif_channel">Zapis trasy</string>
     <string name="notif_title">Zapisuję trasę</string>
+
+    <!-- Zapis trasy -->
+    <string name="record_section">Zapis trasy</string>
+    <string name="record_interval">Pozycja co</string>
+    <string name="record_seconds">%1$d s</string>
+    <string name="record_boot_home">Czarny ekran po uruchomieniu:  %1$s</string>
 
     <!-- Kopia zapasowa -->
     <string name="backup_section">Kopia zapasowa</string>

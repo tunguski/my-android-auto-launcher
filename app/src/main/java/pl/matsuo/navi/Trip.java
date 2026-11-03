@@ -30,6 +30,19 @@ public final class Trip {
     /** Unknown accuracy, for callers that have no estimate. */
     static final float NO_ACCURACY = -1f;
 
+    /** Unknown speed, for callers and for fixes that do not report one. */
+    static final float NO_SPEED = -1f;
+
+    /**
+     * Below this the car is not moving, whatever the position says.
+     *
+     * <p>A standing car with a noisy GPS wanders. The distance rule alone caps how far it can
+     * wander between two stored fixes, but not how often, and recording every second rather than
+     * every ten gives it ten times the opportunities to random-walk a parked car down the road. A
+     * fix that reports its own speed settles it outright.
+     */
+    static final float MIN_SPEED_MS = 0.6f;
+
     // The drive in progress, read by the trip screen.
     static volatile long startedAt; // epoch millis
     static volatile double meters;
@@ -108,7 +121,25 @@ public final class Trip {
      */
     static synchronized boolean record(
             TripStore store, long nowMillis, double lat, double lon, float accuracy) {
+        return record(store, nowMillis, lat, lon, accuracy, NO_SPEED);
+    }
+
+    /**
+     * Offers one fix to the recorder.
+     *
+     * @param nowMillis when the fix was taken
+     * @param accuracy metres, or {@link #NO_ACCURACY}
+     * @param speed metres a second, or {@link #NO_SPEED}
+     * @return true when the fix was stored
+     */
+    static synchronized boolean record(
+            TripStore store, long nowMillis, double lat, double lon, float accuracy, float speed) {
         if (accuracy >= 0 && accuracy > MAX_ACCURACY_M) {
+            return false;
+        }
+        // Standing still, by the receiver's own reckoning. The drive stays open.
+        if (speed >= 0 && speed < MIN_SPEED_MS && tripId != 0) {
+            lastFixAt = nowMillis;
             return false;
         }
         if (tripId == 0 || nowMillis - lastFixAt > GAP_MS) {
@@ -163,6 +194,7 @@ public final class Trip {
                 l.getTime() > 0 ? l.getTime() : System.currentTimeMillis(),
                 l.getLatitude(),
                 l.getLongitude(),
-                l.hasAccuracy() ? l.getAccuracy() : NO_ACCURACY);
+                l.hasAccuracy() ? l.getAccuracy() : NO_ACCURACY,
+                l.hasSpeed() ? l.getSpeed() : NO_SPEED);
     }
 }

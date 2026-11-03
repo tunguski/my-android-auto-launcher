@@ -27,6 +27,9 @@ import org.junit.runner.RunWith;
 @SmallTest
 public class TripDbTest {
 
+    /** A database of its own, so the recording service cannot race this test. */
+    private static final String TEST_DB = "navi-test.db";
+
     private Context context;
     private TripDb db;
     private long t0;
@@ -34,17 +37,16 @@ public class TripDbTest {
     @Before
     public void freshDatabase() {
         context = getInstrumentation().getTargetContext();
-        TripDb.resetForTests();
-        context.deleteDatabase(TripDb.NAME);
-        db = TripDb.of(context);
+        context.deleteDatabase(TEST_DB);
+        db = new TripDb(context, TEST_DB);
         t0 = 1_700_000_000L; // seconds
         Trip.forget();
     }
 
     @After
     public void tidy() {
-        TripDb.resetForTests();
-        context.deleteDatabase(TripDb.NAME);
+        db.close();
+        context.deleteDatabase(TEST_DB);
     }
 
     private long threeFixDrive() {

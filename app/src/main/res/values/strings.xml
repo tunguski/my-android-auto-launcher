@@ -87,6 +87,7 @@
     <string name="stats_to_home">To home</string>
     <string name="stats_no_home">home not set</string>
     <string name="stats_no_route">No route recorded yet</string>
+    <string name="stats_waiting_gps">Waiting for a GPS fix…</string>
     <string name="stats_history">Earlier trips</string>
     <string name="stats_route_desc">Shape of the recorded route</string>
     <string name="stats_current">now</string>
@@ -103,6 +104,12 @@
     <string name="notif_channel">Trip recording</string>
     <string name="notif_title">Recording trip</string>
     <string name="notif_text">%1$s · %2$s</string>
+
+    <!-- Recording -->
+    <string name="record_section">Recording</string>
+    <string name="record_interval">Position every</string>
+    <string name="record_seconds">%1$d s</string>
+    <string name="record_boot_home">Open the black screen after start-up:  %1$s</string>
 
     <!-- Backup -->
     <string name="backup_section">Backup</string>

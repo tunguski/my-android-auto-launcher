@@ -93,11 +93,22 @@ public class BackupJourneyTest extends LauncherTest {
         assertEquals(0, prefs.getInt(BackupRunner.PREF_FAILURES, -1));
         assertTrue(prefs.getLong(BackupRunner.PREF_LAST_OK, 0) > 0);
 
-        int files = 0;
-        for (File year : exportDir().listFiles()) {
-            files += year.listFiles().length;
+        // Every trip the database calls copied has to actually be on disk. Counting
+        // files instead would be fragile: the service is recording the emulator's
+        // own position while this runs, so the total is not a fixed number.
+        int copied = 0;
+        for (TripDb.Row r : db.recent(100)) {
+            if (r.uploadedAt == 0) {
+                continue;
+            }
+            File written =
+                    new File(
+                            new File(exportDir(), Artifact.year(r.startedAt)),
+                            Artifact.name(r.startedAt));
+            assertTrue("marked as copied but not written: trip " + r.id, written.exists());
+            copied++;
         }
-        assertEquals(waiting, files);
+        assertEquals("every finished trip should have been copied", waiting, copied);
     }
 
     @Test
@@ -202,13 +213,16 @@ public class BackupJourneyTest extends LauncherTest {
         prefs.edit().putString(BackupRunner.PREF_MODE, BackupRunner.MODE_DRIVE).apply();
         BackupRunner.runNow(context, prefs); // fails: no client
 
+        // Counted as a difference, because the real service is recording the
+        // emulator's own position at the same time.
+        int before = Trip.points;
         long now = System.currentTimeMillis();
         for (int i = 0; i < 5; i++) {
             Trip.record(db, now + i * 10_000L, 52.0 + i * 0.001, 21.0, Trip.NO_ACCURACY);
         }
 
-        assertEquals("the drive was recorded regardless", 5, Trip.points);
-        assertEquals(5, db.openFixes(Trip.currentId()).n);
+        assertEquals("the drive was recorded regardless", before + 5, Trip.points);
+        assertTrue(db.openFixes(Trip.currentId()).n >= 5);
     }
 
     @Test

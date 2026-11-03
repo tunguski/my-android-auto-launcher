@@ -312,6 +312,16 @@ public abstract class LauncherTest {
         device.waitForIdle();
     }
 
+    /** A formatted string, for the labels that carry a number or a state. */
+    String str(int res, Object... args) {
+        return context.getString(res, args);
+    }
+
+    void tapAfterScroll(int res, Object... args) {
+        scrollToText(str(res, args)).click();
+        device.waitForIdle();
+    }
+
     void assertGone(int res) {
         assertTrue(
                 str(res) + " should not be on screen",

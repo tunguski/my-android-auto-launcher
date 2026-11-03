@@ -10,7 +10,7 @@ tap away and always comes back to that black screen.
 
 ![The home screen as it looks while driving](previews/home.png)
 
-This guide covers version 2.0. Every picture in it is a real screenshot of that
+This guide covers version 2.1. Every picture in it is a real screenshot of that
 build on a 1280×720 head unit screen, taken automatically when the guide is
 produced, so nothing here is a mock-up.
 
@@ -180,10 +180,14 @@ Before the first drive the screen says so rather than showing an empty box.
 
 ## How recording works
 
-- A position is recorded **every ten seconds** while the unit is on.
+- A position is asked for **every second** while the unit is on; the rate can be set
+  to 1, 3 or 10 seconds under Settings → Recording.
 - A fix less accurate than 50 m is discarded as noise.
 - Movement of less than 5 m is treated as standing still and is not stored, so a
   car parked for an hour does not fill the file with the same point.
+- A position that reports its own speed as good as nothing is treated as standing
+  still too. At a fix a second a noisy receiver would otherwise walk a parked car
+  down the road.
 - A jump of more than 2 km between two fixes is a GPS glitch: the point is kept,
   but the distance is not counted.
 - **A pause longer than five minutes starts a new trip.** Stopping for fuel keeps
@@ -281,6 +285,27 @@ This is the button that makes the unit come up in Navi simple after every igniti
 instead of a stock Android screen. On Android 10 and newer it asks the system
 directly; on older units, and whenever that fails, it opens the system home-screen
 picker instead, which is also available as the second button.
+
+## Recording
+
+**Position every** sets how often the receiver is asked for a position: 1, 3 or
+10 seconds. One second is the default. Ten seconds, which earlier versions used,
+is nearly three hundred metres between points at motorway speed and visibly cuts
+every corner.
+
+A faster rate is not ten times the storage. What reaches the database is still
+thinned by movement, so an hour of motorway costs about 20 KB and an hour of town
+driving far less.
+
+**Open the black screen after start-up** brings the launcher to the front once the
+unit has finished booting.
+
+> This is worth leaving on even if the launcher already comes up by itself,
+> because it is also what starts the GPS receiver. A unit parked for a week has
+> forgotten where the satellites are and needs anywhere from half a minute to
+> several minutes to find them again — if that search only begins when you reach
+> the launcher, the first part of the drive is already gone. Switch it off if the
+> unit's own screen fights it for the foreground.
 
 ## Backup
 
@@ -382,8 +407,11 @@ trips are kept.
 | Symptom | What to do |
 | --- | --- |
 | The stock screen comes up after the ignition | Settings → **Set as default home screen** |
+| The unit's own screen still comes up first after a long park | The ROM starts its own app once Android has booted. Keep **Open the black screen after start-up** on, and look for a power-on or boot-app setting in the unit's factory settings |
+| The first minutes of a drive are missing | The receiver had not found the satellites yet. Keep **Open the black screen after start-up** on, so the search begins at boot rather than when you reach the launcher |
+| Points are too far apart | Settings → Recording → **Position every**: 1 second |
 | The temperature stays blank | Grant location permission; check the unit is online |
-| The trip screen shows no route | Nothing recorded yet, or the GPS has no fix |
+| The trip screen shows no route | If it says it is waiting for a fix, the receiver is still searching — after a long park that can take minutes |
 | Distance stays at zero while driving | The unit has no GPS fix, or location permission was refused |
 | The recording notification is missing | Grant notification permission; Android hides it otherwise |
 | Trips are not reaching Google Drive | Settings → Backup: the line there says why. Recording carries on regardless |
