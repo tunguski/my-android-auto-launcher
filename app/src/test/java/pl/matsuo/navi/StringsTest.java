@@ -43,7 +43,8 @@ public class StringsTest {
                             "lang_en", // every language name is in its own language
                             "lang_pl",
                             "drive_client_id",
-                            "drive_client_secret"));
+                            "drive_client_secret",
+                            "update_repo"));
 
     /**
      * Build configuration that lives in the resources and is empty in the public source.

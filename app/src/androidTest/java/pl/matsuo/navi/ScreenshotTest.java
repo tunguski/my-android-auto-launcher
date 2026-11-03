@@ -126,10 +126,20 @@ public class ScreenshotTest extends LauncherTest {
         open("look", MainActivity.EXTRA_HOME_POINT, "52.2297,21.0122,Warszawa");
         screenshot("settings_top");
         UiObject2 panel = device.findObject(By.scrollable(true));
-        if (panel != null) {
-            panel.scroll(Direction.DOWN, 1.0f);
-            device.waitForIdle();
-            screenshot("settings_bottom");
+        if (panel == null) {
+            return;
         }
+        // Three shots, because the panel has outgrown two: every section the guide
+        // describes has to appear in one of them, and the last one has to be the
+        // actual end of the panel rather than wherever one scroll happens to land.
+        panel.scroll(Direction.DOWN, 1.0f);
+        device.waitForIdle();
+        screenshot("settings_middle");
+
+        while (panel.scroll(Direction.DOWN, 1.0f)) {
+            device.waitForIdle();
+        }
+        device.waitForIdle();
+        screenshot("settings_bottom");
     }
 }

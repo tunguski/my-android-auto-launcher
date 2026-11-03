@@ -10,7 +10,7 @@ tap away and always comes back to that black screen.
 
 ![The home screen as it looks while driving](previews/home.png)
 
-This guide covers version 2.1. Every picture in it is a real screenshot of that
+This guide covers version 2.2. Every picture in it is a real screenshot of that
 build on a 1280×720 head unit screen, taken automatically when the guide is
 produced, so nothing here is a mock-up.
 
@@ -263,7 +263,7 @@ screen. The switch here says which way it currently is.
 
 ## Language
 
-![Settings, lower half](previews/settings_bottom.png)
+![Settings: language and the default home screen](previews/settings_middle.png)
 
 English, Polish, or whatever the unit itself is set to. The choice applies
 immediately, including the date under the clock and the order the app list is
@@ -307,9 +307,35 @@ unit has finished booting.
 > the launcher, the first part of the drive is already gone. Switch it off if the
 > unit's own screen fights it for the foreground.
 
+## Updates
+
+![Recording and updates](previews/settings_middle.png)
+
+The app is on no store, so it looks for new releases itself: once a day, and
+whenever you press **Check for an update**. If there is a newer one, a dialog asks
+whether to install it. A version you say no to is not asked about again.
+
+| What | Meaning |
+| --- | --- |
+| **Installed** | the version running now |
+| **Check for an update** | ask GitHub straight away |
+| **Check daily** | whether to look on its own; switched off, only the button checks |
+
+> **An update only installs over the same signature.** Android refuses to replace
+> an app with one signed by a different key, which is what stops anyone else
+> publishing a counterfeit of it. It also means a release built by the project
+> cannot install over a copy built on your own machine — the installer simply says
+> it failed. Uninstalling first loses the recorded trips, so export them or switch
+> the backup on before changing which key you run.
+
+If the unit will not let the launcher install packages at all, the settings offer
+to open the Android page where that is allowed. If it still refuses, the file has
+been downloaded regardless and a file manager can finish the job; the message says
+where it is.
+
 ## Backup
 
-![Backup and storage](previews/settings_bottom.png)
+![Backup and storage, at the end of the panel](previews/settings_bottom.png)
 
 **Off by default, and off means off:** no recorded drive leaves the unit until you
 choose otherwise. There are three settings.

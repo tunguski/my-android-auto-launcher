@@ -215,6 +215,12 @@ public class MainActivity extends Activity {
         updateStats();
         ui.removeCallbacks(periodic);
         ui.postDelayed(periodic, REFRESH_MS);
+        // Once a day at most, and each version is asked about once, so a release
+        // the driver said no to does not come back tomorrow.
+        if (Updater.autoCheckEnabled(prefs)
+                && Updater.dueForCheck(prefs, System.currentTimeMillis())) {
+            checkForUpdate(false);
+        }
     }
 
     @Override
@@ -1097,6 +1103,7 @@ public class MainActivity extends Activity {
         box.addView(pickerBtn, marginTop(px(0.02f)));
 
         addRecordingSection(box);
+        addUpdateSection(box);
         addBackupSection(box);
         addStorageSection(box);
 
@@ -1169,6 +1176,146 @@ public class MainActivity extends Activity {
         lp.setMargins(0, px(0.015f), px(0.02f), px(0.015f));
         t.setLayoutParams(lp);
         return t;
+    }
+
+    // ───────────────────────────── UPDATES ─────────────────────────────
+
+    /**
+     * Which version is installed, and whether a newer one has been published.
+     *
+     * <p>The app is on no store, so without this the owner finds out about a release by accident.
+     */
+    private void addUpdateSection(LinearLayout box) {
+        box.addView(
+                text(getString(R.string.update_section), 0.045f, TEXT_DIM), marginTop(px(0.04f)));
+        box.addView(
+                text(
+                        getString(R.string.update_installed, Updater.installedVersion(this)),
+                        0.035f,
+                        TEXT_DIM));
+
+        String found = prefs.getString(Updater.PREF_FOUND, "");
+        if (!found.isEmpty()) {
+            box.addView(text(getString(R.string.update_available, found), 0.04f, WARN));
+        }
+        String error = prefs.getString(Updater.PREF_LAST_ERROR, "");
+        if (!error.isEmpty()) {
+            box.addView(text(getString(R.string.update_check_failed, error), 0.032f, TEXT_DIM));
+        }
+
+        box.addView(flatButton(getString(R.string.update_check_now), () -> checkForUpdate(true)));
+
+        boolean auto = Updater.autoCheckEnabled(prefs);
+        box.addView(
+                flatButton(
+                        getString(
+                                R.string.update_auto,
+                                getString(auto ? R.string.look_on : R.string.look_off)),
+                        () -> {
+                            prefs.edit().putBoolean(Updater.PREF_AUTO, !auto).apply();
+                            showLook();
+                        }));
+
+        if (!Updater.canInstall(this)) {
+            box.addView(
+                    flatButton(
+                            getString(R.string.update_allow_installs),
+                            () -> safeStart(Updater.unknownSourcesSettings(this))));
+        }
+    }
+
+    /**
+     * Asks GitHub whether there is a newer release.
+     *
+     * @param announce true when the driver asked, so say "up to date" as well as offering an update
+     */
+    private void checkForUpdate(boolean announce) {
+        if (announce) {
+            toast(getString(R.string.update_checking));
+        }
+        new Thread(
+                        () -> {
+                            try {
+                                Update.Release release = Updater.check(this, prefs);
+                                if (release == null) {
+                                    if (announce) {
+                                        ui.post(() -> toast(getString(R.string.update_up_to_date)));
+                                    }
+                                    return;
+                                }
+                                // Asked about once per version, so a release the
+                                // driver said no to does not ask again every day.
+                                if (!announce && Updater.alreadyOffered(prefs, release.version)) {
+                                    return;
+                                }
+                                Updater.markOffered(prefs, release.version);
+                                ui.post(() -> offerUpdate(release));
+                            } catch (Throwable t) {
+                                Updater.noteFailure(prefs, String.valueOf(t.getMessage()));
+                                if (announce) {
+                                    ui.post(
+                                            () ->
+                                                    toast(
+                                                            getString(
+                                                                    R.string.update_check_failed,
+                                                                    String.valueOf(
+                                                                            t.getMessage()))));
+                                }
+                            }
+                        },
+                        "update-check")
+                .start();
+    }
+
+    /** The dialog that asks whether to install what was found. */
+    private void offerUpdate(Update.Release release) {
+        if (!release.installable()) {
+            toast(getString(R.string.update_no_apk));
+            return;
+        }
+        new AlertDialog.Builder(this)
+                .setMessage(getString(R.string.update_question, release.version))
+                .setPositiveButton(
+                        R.string.update_install, (d, which) -> downloadAndInstall(release))
+                .setNegativeButton(R.string.update_later, null)
+                .show();
+    }
+
+    /**
+     * Fetches the APK and hands it to the package installer.
+     *
+     * <p>A unit that refuses to let the launcher install anything is told about rather than left
+     * silent: the file has been downloaded either way, and a file manager can finish the job.
+     */
+    private void downloadAndInstall(Update.Release release) {
+        toast(getString(R.string.update_downloading, release.version));
+        new Thread(
+                        () -> {
+                            try {
+                                File apk = Updater.download(this, release);
+                                Intent install = Updater.installIntent(this, apk);
+                                ui.post(
+                                        () -> {
+                                            if (install == null || !Updater.canInstall(this)) {
+                                                toast(
+                                                        getString(
+                                                                R.string.update_cannot_install,
+                                                                apk.getParent()));
+                                                return;
+                                            }
+                                            safeStart(install);
+                                        });
+                            } catch (Throwable t) {
+                                ui.post(
+                                        () ->
+                                                toast(
+                                                        getString(
+                                                                R.string.update_download_failed,
+                                                                String.valueOf(t.getMessage()))));
+                            }
+                        },
+                        "update-download")
+                .start();
     }
 
     // ───────────────────────────── BACKUP AND STORAGE ─────────────────────────────

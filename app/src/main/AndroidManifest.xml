@@ -10,6 +10,8 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- So the launcher, and with it the GPS engine, is up before the car moves. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- So an update found on GitHub can be handed to the package installer. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!-- A launcher must be able to see the installed apps (Android 11+). -->
     <queries>
@@ -62,6 +64,13 @@
                 <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
             </intent-filter>
         </receiver>
+
+        <!-- Hands a downloaded update to the package installer; see ApkProvider. -->
+        <provider
+            android:name=".ApkProvider"
+            android:authorities="pl.matsuo.navi.apk"
+            android:exported="false"
+            android:grantUriPermissions="true" />
 
         <!-- Records the route while other apps are in front. -->
         <service

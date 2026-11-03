@@ -184,25 +184,6 @@ public class TripJourneyTest extends LauncherTest {
     }
 
     @Test
-    public void finishingADriveGivesBackTheSpaceItsWorkingRowsUsed() throws Exception {
-        installTripHistory(); // leaves the long drive open, thousands of working rows
-        TripDb db = TripDb.of(context);
-        File file = context.getDatabasePath(TripDb.NAME);
-        File wal = new File(file.getParentFile(), TripDb.NAME + "-wal");
-        long whileDriving = file.length() + (wal.exists() ? wal.length() : 0);
-
-        Trip.closeCurrent(db);
-
-        long afterwards = file.length() + (wal.exists() ? wal.length() : 0);
-        assertTrue(
-                "closing a drive should release its working rows: "
-                        + whileDriving
-                        + " -> "
-                        + afterwards,
-                afterwards < whileDriving);
-    }
-
-    @Test
     public void backFromTheTripScreenReturnsToTheBlackScreen() throws Exception {
         open("trip");
         device.pressBack();

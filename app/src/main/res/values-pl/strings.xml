@@ -89,6 +89,24 @@
     <string name="record_seconds">%1$d s</string>
     <string name="record_boot_home">Czarny ekran po uruchomieniu:  %1$s</string>
 
+    <!-- Aktualizacje -->
+    <string name="update_section">Aktualizacje</string>
+    <string name="update_installed">Zainstalowana: %1$s</string>
+    <string name="update_check_now">Sprawdź aktualizację</string>
+    <string name="update_checking">Sprawdzam…</string>
+    <string name="update_up_to_date">To najnowsze wydanie</string>
+    <string name="update_available">Dostępna wersja %1$s</string>
+    <string name="update_question">Dostępna jest wersja %1$s. Zainstalować teraz?</string>
+    <string name="update_install">Zainstaluj</string>
+    <string name="update_downloading">Pobieram %1$s…</string>
+    <string name="update_download_failed">Pobieranie nieudane: %1$s</string>
+    <string name="update_check_failed">Nie udało się sprawdzić: %1$s</string>
+    <string name="update_no_apk">To wydanie nie zawiera pliku do instalacji</string>
+    <string name="update_cannot_install">To radio nie pozwala launcherowi instalować pakietów. Plik jest w %1$s - zainstaluj go menedżerem plików.</string>
+    <string name="update_allow_installs">Zezwól na instalowanie…</string>
+    <string name="update_auto">Sprawdzaj codziennie:  %1$s</string>
+    <string name="update_later">Później</string>
+
     <!-- Kopia zapasowa -->
     <string name="backup_section">Kopia zapasowa</string>
     <string name="backup_off">Wyłączona</string>

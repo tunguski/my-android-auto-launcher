@@ -10,6 +10,7 @@ import static org.junit.Assert.assertTrue;
 import android.content.Context;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
+import java.io.File;
 import java.util.List;
 import org.junit.After;
 import org.junit.Before;
@@ -115,6 +116,38 @@ public class TripDbTest {
         db.close(id);
         // Five bytes a fix plus the header, not thirty-one a fix.
         assertEquals(Track.HEADER + 5 * 99, db.track(id).length);
+    }
+
+    @Test
+    public void finishingADriveGivesBackTheSpaceItsWorkingRowsUsed() {
+        // A four-hour drive leaves thousands of working rows behind. Measured here
+        // rather than in a journey test because the recording service writes to the
+        // shared database every second, which both regrows the log and can block
+        // the checkpoint that shortens the file.
+        long id = db.open(t0, Track.micro(52.0), Track.micro(21.0));
+        for (int i = 1; i < 4000; i++) {
+            db.append(id, t0 + i, Track.micro(52.0 + i * 0.0002), Track.micro(21.0));
+        }
+        long whileDriving = sizeOnDisk();
+
+        db.close(id);
+
+        long afterwards = sizeOnDisk();
+        assertTrue(
+                "closing a drive should release its working rows: "
+                        + whileDriving
+                        + " -> "
+                        + afterwards,
+                afterwards < whileDriving);
+        // And what is left is the packed track, not the rows it came from.
+        assertEquals(4000, Track.decode(db.track(id)).n);
+    }
+
+    /** The database and its write-ahead log; space hidden in the log is space used. */
+    private long sizeOnDisk() {
+        File file = context.getDatabasePath(TEST_DB);
+        File wal = new File(file.getParentFile(), TEST_DB + "-wal");
+        return file.length() + (wal.exists() ? wal.length() : 0);
     }
 
     @Test

@@ -150,6 +150,20 @@ The PDF comes from [`tools/MdPdf.java`](tools/MdPdf.java) and the HTML from
 from source by the JDK. The HTML inlines its pictures, so it is one file that opens
 anywhere - including on the head unit - without the previews folder beside it.
 
+## Updating in place
+
+The app checks `tunguski/my-android-auto-launcher` for a newer release — daily, and
+on demand from the settings — and offers to download and install it. `Update` reads the
+release and decides what is newer; `Updater` fetches it; `ApkProvider` is a sixty-line
+`ContentProvider` that hands the file to the package installer, because an installer has
+refused `file://` URIs since Android 7 and this project is not adding AndroidX for that.
+
+**This only works if every release is signed with the same key.** Android will not
+replace an app with one signed by a different one, which is exactly what stops a
+counterfeit — and equally means a CI-signed release cannot install over a locally built,
+debug-signed copy. Pick the release keystore once and keep it, because switching means
+uninstalling, and uninstalling takes the trip database with it.
+
 ### Signing a release
 
 Release signing material never lives in the repository. Provide it either in a
@@ -166,6 +180,22 @@ keyPassword=…
 `NAVI_KEY_PASSWORD` environment variables. Without either, `assembleRelease` produces an
 unsigned APK.
 
+To create the key once:
+
+```bash
+keytool -genkeypair -v -keystore release.jks -alias navi \
+        -keyalg RSA -keysize 4096 -validity 10000 \
+        -dname "CN=Navi simple" -storepass "<pick one>" -keypass "<the same one>"
+base64 -w0 release.jks          # the value for the NAVI_KEYSTORE_BASE64 secret
+```
+
+Keep `release.jks` somewhere safe and off the repository — it is git-ignored, and losing
+it means no future release can update an installed copy. Then add four repository secrets
+under *Settings → Secrets and variables → Actions*: `NAVI_KEYSTORE_BASE64`,
+`NAVI_KEYSTORE_PASSWORD`, `NAVI_KEY_ALIAS` (`navi`) and `NAVI_KEY_PASSWORD`. **Until those
+exist, pushing a `v*` tag fails at the first step of the release job and publishes
+nothing.**
+
 For CI, store the keystore as a base64 string in the `NAVI_KEYSTORE_BASE64` repository
 secret (`base64 -w0 release.jks`) along with the three password secrets. Pushing a `v*` tag
 then runs both test suites and publishes a release carrying the signed APK, the user guide
@@ -180,6 +210,9 @@ in both formats, a zip of the previews and a `SHA256SUMS.txt`.
 app/src/main/AndroidManifest.xml          HOME + LAUNCHER filters, landscape, singleTask
 app/src/main/java/pl/matsuo/navi/
     MainActivity.java                     the screens, the weather fetch, the settings
+    Update.java, Updater.java             looks for a newer release on GitHub
+    ApkProvider.java                      hands a downloaded update to the installer
+    BootReceiver.java                     brings the launcher up after a cold boot
     Trip.java                             the recording rules, free of any storage
     TripStore.java                        the little storage needs
     TripDb.java                           SQLite: trips, packed routes, backup state

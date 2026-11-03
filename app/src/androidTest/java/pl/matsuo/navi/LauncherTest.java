@@ -91,6 +91,10 @@ public abstract class LauncherTest {
                 .edit()
                 .clear()
                 .commit();
+        // Stop the recorder before the database goes. It writes every second, and
+        // deleting the file under an open connection leaves the next one trying to
+        // create tables that are already there. The next open() starts it again.
+        shell("am stopservice " + PKG + "/.TripService");
         Trip.forget();
         TripDb.resetForTests();
         context.deleteDatabase(TripDb.NAME);

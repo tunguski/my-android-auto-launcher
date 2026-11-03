@@ -4,8 +4,8 @@ plugins {
     id("com.android.application")
 }
 
-val appVersionName = "2.1"
-val appVersionCode = 12
+val appVersionName = "2.2"
+val appVersionCode = 13
 
 // Output file names carry the version, e.g. navi-1.8-debug.apk.
 base {

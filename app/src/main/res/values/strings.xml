@@ -111,6 +111,26 @@
     <string name="record_seconds">%1$d s</string>
     <string name="record_boot_home">Open the black screen after start-up:  %1$s</string>
 
+    <!-- Updates -->
+    <string name="update_section">Updates</string>
+    <!-- The GitHub repository releases are published to. -->
+    <string name="update_repo" translatable="false">tunguski/my-android-auto-launcher</string>
+    <string name="update_installed">Installed: %1$s</string>
+    <string name="update_check_now">Check for an update</string>
+    <string name="update_checking">Checking…</string>
+    <string name="update_up_to_date">This is the newest release</string>
+    <string name="update_available">Version %1$s is available</string>
+    <string name="update_question">Version %1$s is available. Install it now?</string>
+    <string name="update_install">Install</string>
+    <string name="update_downloading">Downloading %1$s…</string>
+    <string name="update_download_failed">Download failed: %1$s</string>
+    <string name="update_check_failed">Could not check: %1$s</string>
+    <string name="update_no_apk">That release carries no installable file</string>
+    <string name="update_cannot_install">This unit will not let the launcher install packages. The file is in %1$s - install it with a file manager.</string>
+    <string name="update_allow_installs">Allow installing…</string>
+    <string name="update_auto">Check daily:  %1$s</string>
+    <string name="update_later">Later</string>
+
     <!-- Backup -->
     <string name="backup_section">Backup</string>
     <string name="backup_off">Off</string>

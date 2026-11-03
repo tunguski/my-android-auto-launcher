@@ -140,7 +140,14 @@ public class RecordingJourneyTest extends LauncherTest {
         String roles = shell("cmd role get-role-holders android.app.role.HOME");
         assertTrue("the launcher does not hold the HOME role: " + roles, roles.contains(PKG));
         device.pressHome();
-        device.waitForIdle();
-        assertEquals(PKG, device.getCurrentPackageName());
+        // Waiting for it, rather than asking once: whatever was in front takes a
+        // moment to go, and the window animation is not what is being tested.
+        assertTrue(
+                "HOME did not come back to the launcher",
+                device.wait(
+                        androidx.test.uiautomator.Until.hasObject(
+                                androidx.test.uiautomator.By.pkg(PKG)),
+                        TIMEOUT_MS));
+        assertVisible(R.string.tile_nav);
     }
 }
