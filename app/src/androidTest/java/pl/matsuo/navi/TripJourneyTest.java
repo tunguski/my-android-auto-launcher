@@ -55,15 +55,22 @@ public class TripJourneyTest extends LauncherTest {
         long before = Trip.currentId();
         Trip.forget();
         Trip.resume(TripDb.of(context), System.currentTimeMillis());
+
+        // What resume left behind, read before anything else can touch it: the
+        // recorder keeps its drive in static fields, and the service that comes
+        // up with the screen below listens to a real location provider. A fix
+        // arriving mid-assertion would otherwise be read as resume's own work.
+        long resumedId = Trip.currentId();
+        double resumedMeters = Trip.meters;
         open("trip");
 
-        assertEquals("the stored drive was not resumed", before, Trip.currentId());
+        assertEquals("the stored drive was not resumed", before, resumedId);
         assertTrue(
-                "the resumed distance is not on the screen: " + Format.distance(Trip.meters),
-                hasTextContaining(Format.distance(Trip.meters)));
+                "the resumed distance is not on the screen: " + Format.distance(resumedMeters),
+                hasTextContaining(Format.distance(resumedMeters)));
         assertTrue(
-                "the resumed drive is not about 320 km: " + Trip.meters,
-                Trip.meters > 310_000 && Trip.meters < 330_000);
+                "the resumed drive is not about 320 km: " + resumedMeters,
+                resumedMeters > 310_000 && resumedMeters < 330_000);
     }
 
     @Test
