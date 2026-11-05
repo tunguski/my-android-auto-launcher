@@ -350,7 +350,22 @@ final class TripDb extends SQLiteOpenHelper implements TripStore {
                 return null;
             }
             long id = c.getLong(0);
-            Track.Fixes fixes = c.getInt(1) != 0 ? Track.decode(track(id)) : openFixes(db, id);
+            if (c.getInt(1) == 0) {
+                // One row, by the primary key, rather than every fix of the drive:
+                // this is asked for while the unit is starting up, and reading a
+                // three-hundred-kilometre drive to look at its last point was
+                // enough to hold the launcher off the screen.
+                try (Cursor f =
+                        db.rawQuery(
+                                "SELECT lat, lon FROM open_fix WHERE trip_id=?"
+                                        + " ORDER BY t DESC LIMIT 1",
+                                new String[] {Long.toString(id)})) {
+                    return f.moveToFirst()
+                            ? new double[] {Track.degrees(f.getInt(0)), Track.degrees(f.getInt(1))}
+                            : null;
+                }
+            }
+            Track.Fixes fixes = Track.decode(track(id));
             if (fixes.n == 0) {
                 return null;
             }

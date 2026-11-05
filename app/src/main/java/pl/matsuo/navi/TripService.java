@@ -80,22 +80,29 @@ public class TripService extends Service {
      * Offers the end of the last drive as the start of the next one.
      *
      * <p>Only when nothing was resumed: a drive still in progress already knows where it began.
-     * Reading one route costs a single indexed row, and it has to happen before the first fix
-     * arrives, which on a cold receiver leaves the best part of a minute.
+     *
+     * <p>On a thread of its own, and never before the service is in the foreground. It is one
+     * indexed row, but it is still disk work on the thread that draws the launcher, and the
+     * launcher is what the driver is looking at while the ignition comes on. There is no hurry: it
+     * only has to be armed before the first fix, which on a cold receiver is the best part of a
+     * minute away.
      */
     private void armSeedFromLastDrive() {
-        if (Trip.currentId() != 0) {
-            return;
-        }
-        try {
-            double[] p = db.lastPoint();
-            if (p != null) {
-                Trip.armSeed(System.currentTimeMillis(), p[0], p[1]);
-            }
-        } catch (Throwable ignored) {
-            // A missing start point costs the first leg of one drive. Recording
-            // must never depend on it.
-        }
+        long startedListeningAt = System.currentTimeMillis();
+        new Thread(
+                        () -> {
+                            try {
+                                double[] p = db.lastPoint();
+                                if (p != null) {
+                                    Trip.armSeedIfIdle(startedListeningAt, p[0], p[1]);
+                                }
+                            } catch (Throwable ignored) {
+                                // A missing start point costs the first leg of one
+                                // drive. Recording must never depend on it.
+                            }
+                        },
+                        "seed")
+                .start();
     }
 
     public static void start(Context c) {
@@ -113,9 +120,9 @@ public class TripService extends Service {
         db = TripDb.of(this);
         prefs = getSharedPreferences(MainActivity.PREFS, MODE_PRIVATE);
         Trip.resume(db, System.currentTimeMillis()); // carry on after a process restart
-        armSeedFromLastDrive();
         createChannel();
         startInForeground();
+        armSeedFromLastDrive();
         importOldTripsInTheBackground();
 
         lm = (LocationManager) getSystemService(Context.LOCATION_SERVICE);

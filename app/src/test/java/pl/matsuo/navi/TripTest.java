@@ -446,6 +446,16 @@ public class TripTest {
     }
 
     @Test
+    public void theParkingSpotIsRefusedOutrightOnceADriveIsOpen() {
+        // The spot arrives from a thread of its own, so a fix may have opened a
+        // drive while it was being read. Arming it then would hand a stale
+        // timestamp to the drive after this one.
+        fix(t0, PARK_LAT, PARK_LON);
+
+        assertFalse(Trip.armSeedIfIdle(t0 + 1000, 50.0, 20.0));
+    }
+
+    @Test
     public void theParkingSpotIsNotUsedWhileADriveIsAlreadyOpen() {
         fix(t0, PARK_LAT, PARK_LON); // a drive in progress
         long id = Trip.currentId();

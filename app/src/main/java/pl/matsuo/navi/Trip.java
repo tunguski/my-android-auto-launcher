@@ -121,6 +121,24 @@ public final class Trip {
     }
 
     /**
+     * Arms the parking spot only if no drive is open, as one atomic step.
+     *
+     * <p>The spot is read from disk on a thread of its own, so by the time it arrives a fix may
+     * already have opened a drive. Checking and arming separately would leave the spot armed
+     * against a drive that does not want it, and it would then be offered to the drive after that
+     * one with a timestamp an hour old.
+     *
+     * @return true if the spot was armed
+     */
+    static synchronized boolean armSeedIfIdle(long startedListeningAt, double lat, double lon) {
+        if (tripId != 0) {
+            return false;
+        }
+        armSeed(startedListeningAt, lat, lon);
+        return true;
+    }
+
+    /**
      * Whether the parking spot may begin the drive that this fix belongs to.
      *
      * <p>Two conditions, both necessary. The fix came soon enough after recording started that the
