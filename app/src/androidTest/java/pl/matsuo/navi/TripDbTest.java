@@ -8,9 +8,11 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
+import android.os.ParcelFileDescriptor;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 import java.io.File;
+import java.io.InputStream;
 import java.util.List;
 import org.junit.After;
 import org.junit.Before;
@@ -36,8 +38,14 @@ public class TripDbTest {
     private long t0;
 
     @Before
-    public void freshDatabase() {
+    public void freshDatabase() throws Exception {
         context = getInstrumentation().getTargetContext();
+        // A database of its own is not enough. The recorder keeps the live drive in
+        // static fields, and these tests drive those fields; a service recording the
+        // emulator's own position at the same time would put its fixes into whichever
+        // drive these tests have made current - and into the other database. Stop it.
+        // The next test that opens the launcher starts it again.
+        stopRecorder();
         context.deleteDatabase(TEST_DB);
         db = new TripDb(context, TEST_DB);
         t0 = 1_700_000_000L; // seconds
@@ -48,6 +56,21 @@ public class TripDbTest {
     public void tidy() {
         db.close();
         context.deleteDatabase(TEST_DB);
+        // Nothing in the real database answers to the ids used here.
+        Trip.forget();
+    }
+
+    private void stopRecorder() throws Exception {
+        ParcelFileDescriptor fd =
+                getInstrumentation()
+                        .getUiAutomation()
+                        .executeShellCommand("am stopservice pl.matsuo.navi/.TripService");
+        try (InputStream in = new ParcelFileDescriptor.AutoCloseInputStream(fd)) {
+            byte[] buf = new byte[256];
+            while (in.read(buf) > 0) {
+                // Drained, so the command has finished before the test starts.
+            }
+        }
     }
 
     private long threeFixDrive() {
@@ -366,5 +389,72 @@ public class TripDbTest {
         assertEquals("the packed length must match what was counted live", live, r.meters, 1.0);
         assertEquals(drive.size(), db.route(id).size());
         assertFalse(db.recent(10).isEmpty());
+    }
+
+    // ──────────────────── where the last drive left the car ────────────────────
+
+    @Test
+    public void nothingStoredMeansNoLastPoint() {
+        assertNull(db.lastPoint());
+    }
+
+    @Test
+    public void theLastPointOfAFinishedDriveComesBackFromThePackedTrack() {
+        long id = threeFixDrive();
+        db.close(id);
+
+        double[] p = db.lastPoint();
+        assertEquals(52.002000, p[0], 1e-6);
+        assertEquals(21.000000, p[1], 1e-6);
+    }
+
+    @Test
+    public void theLastPointOfADriveInProgressComesBackFromItsFixes() {
+        threeFixDrive(); // left open
+        double[] p = db.lastPoint();
+        assertEquals(52.002000, p[0], 1e-6);
+    }
+
+    @Test
+    public void theNewestDriveIsTheOneThatCounts() {
+        long older = threeFixDrive();
+        db.close(older);
+        long newer = db.open(t0 + 86400, Track.micro(50.000000), Track.micro(19.000000));
+        db.close(newer);
+
+        double[] p = db.lastPoint();
+        assertEquals("an older drive answered instead of the newest", 50.0, p[0], 1e-6);
+    }
+
+    @Test
+    public void aNewDriveIsStitchedToWhereTheLastOneParked() {
+        // The whole point, through the real database: a drive is finished and the
+        // car parked; later the receiver takes a minute to find itself, and the
+        // new drive must still begin at the parking spot rather than down the road.
+        long parked = threeFixDrive();
+        db.close(parked);
+        double[] spot = db.lastPoint();
+
+        long startedListening = (t0 + 86400) * 1000L;
+        Trip.armSeed(startedListening, spot[0], spot[1]);
+        // 50 seconds later, 1.2 km north: within the window and the allowance.
+        assertTrue(
+                Trip.record(
+                        db,
+                        startedListening + 50_000,
+                        spot[0] + 1200 / 111_195.0,
+                        spot[1],
+                        Trip.NO_ACCURACY));
+        long id = Trip.currentId();
+        Trip.closeCurrent(db);
+
+        assertNotEquals(parked, id);
+        List<double[]> route = db.route(id);
+        assertEquals("the parking spot is not the first point", 2, route.size());
+        assertEquals(spot[0], route.get(0)[0], 1e-5);
+        assertEquals(spot[1], route.get(0)[1], 1e-5);
+        assertEquals("the missing leg was not counted", 1200, db.trip(id).meters, 10);
+        assertEquals(
+                "the drive does not start when recording did", t0 + 86400, db.trip(id).startedAt);
     }
 }

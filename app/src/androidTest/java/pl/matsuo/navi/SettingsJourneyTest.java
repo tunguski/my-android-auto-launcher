@@ -68,6 +68,18 @@ public class SettingsJourneyTest extends LauncherTest {
                 halfHeight < fullHeight * 0.75);
     }
 
+    /** The stored size variant, once it has been written, or whatever is there after the wait. */
+    private int storedSize() throws Exception {
+        for (long waited = 0; waited < TIMEOUT_MS; waited += 100) {
+            int stored = context.getSharedPreferences(MainActivity.PREFS, 0).getInt("size", -1);
+            if (stored != -1) {
+                return stored;
+            }
+            Thread.sleep(100);
+        }
+        return context.getSharedPreferences(MainActivity.PREFS, 0).getInt("size", -1);
+    }
+
     @Test
     public void theSizeChoiceIsStoredAndSurvivesLeavingTheScreen() throws Exception {
         open("look");
@@ -75,10 +87,9 @@ public class SettingsJourneyTest extends LauncherTest {
         waitFor(By.text(MainActivity.SIZE_NAMES[2])).click();
         device.waitForIdle();
 
-        assertEquals(
-                "the choice was not stored",
-                2,
-                context.getSharedPreferences(MainActivity.PREFS, 0).getInt("size", -1));
+        // Waited for, not asked once: the tap is handled on the main thread and
+        // the preference is written there, so a single look can land first.
+        assertEquals("the choice was not stored", 2, storedSize());
 
         device.pressBack();
         int chosen = clock().getVisibleBounds().height();

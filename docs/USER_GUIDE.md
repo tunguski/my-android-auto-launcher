@@ -10,7 +10,7 @@ tap away and always comes back to that black screen.
 
 ![The home screen as it looks while driving](previews/home.png)
 
-This guide covers version 2.2. Every picture in it is a real screenshot of that
+This guide covers version 2.3. Every picture in it is a real screenshot of that
 build on a 1280×720 head unit screen, taken automatically when the guide is
 produced, so nothing here is a mock-up.
 
@@ -194,6 +194,14 @@ Before the first drive the screen says so rather than showing an empty box.
   the same trip; parking overnight starts a new one.
 - If the unit restarts mid-drive, the trip is picked up again from disk instead of
   being split in two.
+- **A drive begins where the last one ended**, if the first fix agrees. A cold
+  receiver can take a minute to find itself, and the kilometre or two driven in
+  that minute would otherwise be missing, with the drive appearing to start down
+  the road. So the spot where the previous drive ended is used as the start,
+  provided the first fix arrives within three minutes of the unit switching on and
+  is no further from that spot than two kilometres for each minute of waiting.
+  Anything else — a longer wait, a car that was towed or trailered — and the first
+  fix starts the drive on its own.
 
 Recording runs in a foreground service, which is why a notification showing the
 distance and duration sits in the status bar. Android gives a background app only
@@ -434,7 +442,7 @@ trips are kept.
 | --- | --- |
 | The stock screen comes up after the ignition | Settings → **Set as default home screen** |
 | The unit's own screen still comes up first after a long park | The ROM starts its own app once Android has booted. Keep **Open the black screen after start-up** on, and look for a power-on or boot-app setting in the unit's factory settings |
-| The first minutes of a drive are missing | The receiver had not found the satellites yet. Keep **Open the black screen after start-up** on, so the search begins at boot rather than when you reach the launcher |
+| The first minutes of a drive are missing | The receiver had not found the satellites yet. The drive is stitched to where the last one ended when that is plausible, so only a long search loses the beginning. Keep **Open the black screen after start-up** on, so the search begins at boot rather than when you reach the launcher |
 | Points are too far apart | Settings → Recording → **Position every**: 1 second |
 | The temperature stays blank | Grant location permission; check the unit is online |
 | The trip screen shows no route | If it says it is waiting for a fix, the receiver is still searching — after a long park that can take minutes |

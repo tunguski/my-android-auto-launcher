@@ -43,6 +43,26 @@ public final class Trip {
      */
     static final float MIN_SPEED_MS = 0.6f;
 
+    /**
+     * How long after recording starts the last known parking spot may still begin a drive.
+     *
+     * <p>A cold receiver needs the best part of a minute to find itself, and whatever the car drove
+     * in that minute is lost: the drive appears to begin wherever the first fix lands, a kilometre
+     * or two down the road. The car was not there, though - it was where it parked. Within this
+     * window that spot is a better start than the first fix.
+     */
+    static final long SEED_WINDOW_MS = 3 * 60 * 1000L;
+
+    /**
+     * How far from the parking spot the first fix may be, per minute of waiting.
+     *
+     * <p>This is what tells a drive that began where it parked from one that did not begin here at
+     * all: a car on a trailer, or a unit that sat in a garage while the fix it finally got came
+     * from somewhere else entirely. Two kilometres a minute is generous for a car pulling out of a
+     * parking space and mean enough to reject a jump.
+     */
+    static final float SEED_DRIFT_M_PER_MIN = 2000f;
+
     // The drive in progress, read by the trip screen.
     static volatile long startedAt; // epoch millis
     static volatile double meters;
@@ -55,6 +75,12 @@ public final class Trip {
     private static double prevLat;
     private static double prevLon;
     private static boolean hasPrev;
+
+    // Where the last drive ended, offered as the start of the next one.
+    private static boolean seedArmed;
+    private static long seedFrom; // when recording started, epoch millis
+    private static double seedLat;
+    private static double seedLon;
 
     private Trip() {}
 
@@ -75,6 +101,47 @@ public final class Trip {
         points = 0;
         lastLat = Double.NaN;
         lastLon = Double.NaN;
+        seedArmed = false;
+    }
+
+    /**
+     * Offers the spot where the last drive ended as the start of the next one.
+     *
+     * <p>Called when recording starts and no drive was resumed. Nothing is stored yet: the spot is
+     * only used if the first fix to arrive agrees that the car was still standing there, by {@link
+     * #seedApplies}. One drive gets to use it, and only its first fix.
+     *
+     * @param startedListeningAt when recording started, epoch millis
+     */
+    static synchronized void armSeed(long startedListeningAt, double lat, double lon) {
+        seedArmed = true;
+        seedFrom = startedListeningAt;
+        seedLat = lat;
+        seedLon = lon;
+    }
+
+    /**
+     * Whether the parking spot may begin the drive that this fix belongs to.
+     *
+     * <p>Two conditions, both necessary. The fix came soon enough after recording started that the
+     * car cannot have been anywhere else in between - this is a cold receiver being slow, not a
+     * drive that started elsewhere. And the car is near enough to the parking spot for the wait:
+     * every minute of waiting allows another {@link #SEED_DRIFT_M_PER_MIN}, rounded up, because a
+     * minute of waiting is a minute of driving away from where it parked.
+     */
+    static boolean seedApplies(
+            long startedListeningAt,
+            long nowMillis,
+            double fromLat,
+            double fromLon,
+            double lat,
+            double lon) {
+        long waited = nowMillis - startedListeningAt;
+        if (waited < 0 || waited > SEED_WINDOW_MS) {
+            return false;
+        }
+        long minutes = Math.max(1, (waited + 59_999) / 60_000); // rounded up, never zero
+        return Geo.distance(fromLat, fromLon, lat, lon) < SEED_DRIFT_M_PER_MIN * minutes;
     }
 
     /**
@@ -146,6 +213,25 @@ public final class Trip {
             if (tripId != 0) {
                 store.close(tripId);
             }
+            if (seedArmed && seedApplies(seedFrom, nowMillis, seedLat, seedLon, lat, lon)) {
+                // Begin where the car parked, at the moment recording started, and
+                // let this fix be the second point. That restores both the missing
+                // leg and the missing minutes: without it the drive would appear to
+                // start wherever the receiver happened to find itself.
+                seedArmed = false;
+                tripId = store.open(seedFrom / 1000L, Track.micro(seedLat), Track.micro(seedLon));
+                startedAt = seedFrom;
+                points = 1;
+                setLast(seedFrom, seedLat, seedLon);
+                // Counted whatever its length, unlike an ordinary step: both ends
+                // are known positions, so this is a driven leg and not a GPS jump.
+                meters = Geo.distance(seedLat, seedLon, lat, lon);
+                store.append(tripId, nowMillis / 1000L, Track.micro(lat), Track.micro(lon));
+                points++;
+                setLast(nowMillis, lat, lon);
+                return true;
+            }
+            seedArmed = false;
             tripId = store.open(nowMillis / 1000L, Track.micro(lat), Track.micro(lon));
             startedAt = nowMillis;
             meters = 0;

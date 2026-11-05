@@ -95,8 +95,15 @@ final class BackupRunner {
         runNow(c, prefs, backend(c, prefs));
     }
 
-    /** The same, against a given backend, so a test can supply one that fails. */
-    static void runNow(Context c, SharedPreferences prefs, Backup backend) {
+    /**
+     * The same, against a given backend, so a test can supply one that fails.
+     *
+     * <p>One run at a time, whoever asks. {@link #trigger} already serialises its own runs, but a
+     * caller that runs the work itself - the settings screen, a test - would otherwise overlap with
+     * one already in flight, and two runs uploading the same trip can leave it marked as exported
+     * with nothing on disk.
+     */
+    static synchronized void runNow(Context c, SharedPreferences prefs, Backup backend) {
         prefs.edit().putLong(PREF_LAST_ATTEMPT, System.currentTimeMillis()).apply();
         if (backend == null || !backend.configured()) {
             fail(prefs, c.getString(R.string.backup_not_configured));

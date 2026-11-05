@@ -150,7 +150,10 @@ public class StartupJourneyTest extends LauncherTest {
 
     @Test
     public void beforeTheFirstFixTheScreenSaysItIsWaitingForOne() throws Exception {
-        open("trip");
+        // With recording off for this run: the notice is what the screen says while
+        // no drive is open, and a live receiver on the emulator would end that state
+        // mid-assertion - which is a race in the test, not a fault in the screen.
+        open("trip", MainActivity.EXTRA_NO_RECORDING, "1");
         // Not "no route recorded yet": nothing is wrong, the receiver is still
         // looking, and a driver staring at an empty screen deserves to know which.
         assertVisible(R.string.stats_waiting_gps);

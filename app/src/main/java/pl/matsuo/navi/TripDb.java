@@ -335,6 +335,31 @@ final class TripDb extends SQLiteOpenHelper implements TripStore {
         }
     }
 
+    /**
+     * Where the newest stored drive ended: {latitude, longitude}, or null when nothing is stored.
+     *
+     * <p>Read once when recording starts, to offer {@link Trip#armSeed} a start for the next drive.
+     * Newest by start, finished or not, because a drive the previous run left open has already been
+     * closed by {@link Trip#resume} if it was stale, and is the live one if it was not.
+     */
+    double[] lastPoint() {
+        SQLiteDatabase db = getReadableDatabase();
+        try (Cursor c =
+                db.rawQuery("SELECT id, closed FROM trip ORDER BY started_at DESC LIMIT 1", null)) {
+            if (!c.moveToFirst()) {
+                return null;
+            }
+            long id = c.getLong(0);
+            Track.Fixes fixes = c.getInt(1) != 0 ? Track.decode(track(id)) : openFixes(db, id);
+            if (fixes.n == 0) {
+                return null;
+            }
+            return new double[] {
+                Track.degrees(fixes.lat[fixes.n - 1]), Track.degrees(fixes.lon[fixes.n - 1])
+            };
+        }
+    }
+
     /** The packed route of a finished trip, or an empty array. */
     byte[] track(long id) {
         try (Cursor c =

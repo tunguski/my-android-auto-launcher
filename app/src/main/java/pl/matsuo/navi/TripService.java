@@ -76,6 +76,28 @@ public class TripService extends Service {
                 .start();
     }
 
+    /**
+     * Offers the end of the last drive as the start of the next one.
+     *
+     * <p>Only when nothing was resumed: a drive still in progress already knows where it began.
+     * Reading one route costs a single indexed row, and it has to happen before the first fix
+     * arrives, which on a cold receiver leaves the best part of a minute.
+     */
+    private void armSeedFromLastDrive() {
+        if (Trip.currentId() != 0) {
+            return;
+        }
+        try {
+            double[] p = db.lastPoint();
+            if (p != null) {
+                Trip.armSeed(System.currentTimeMillis(), p[0], p[1]);
+            }
+        } catch (Throwable ignored) {
+            // A missing start point costs the first leg of one drive. Recording
+            // must never depend on it.
+        }
+    }
+
     public static void start(Context c) {
         Intent i = new Intent(c, TripService.class);
         try {
@@ -91,6 +113,7 @@ public class TripService extends Service {
         db = TripDb.of(this);
         prefs = getSharedPreferences(MainActivity.PREFS, MODE_PRIVATE);
         Trip.resume(db, System.currentTimeMillis()); // carry on after a process restart
+        armSeedFromLastDrive();
         createChannel();
         startInForeground();
         importOldTripsInTheBackground();

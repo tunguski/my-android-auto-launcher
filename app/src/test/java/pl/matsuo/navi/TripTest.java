@@ -344,4 +344,131 @@ public class TripTest {
             assertNull(store.get(99));
         }
     }
+
+    // ───────────────────── starting where the car parked ─────────────────────
+
+    /** Where the previous drive ended; the spot offered as the next drive's start. */
+    private static final double PARK_LAT = 52.2297;
+
+    private static final double PARK_LON = 21.0122;
+
+    /** Metres per degree of latitude on the sphere {@link Geo} uses. */
+    private static final double M_PER_DEGREE = 111_195.0;
+
+    /** A fix the given distance due north of the parking spot. */
+    private boolean fixNorthOfPark(long at, double metres) {
+        return fix(at, PARK_LAT + metres / M_PER_DEGREE, PARK_LON);
+    }
+
+    @Test
+    public void theDriveBeginsWhereItParkedWhenTheFirstFixArrivesSoon() {
+        Trip.armSeed(t0, PARK_LAT, PARK_LON);
+        assertTrue(fixNorthOfPark(t0 + 40_000, 1500));
+
+        // The drive starts at the parking spot and at the moment recording began,
+        // not a kilometre and a half later where the receiver found itself.
+        assertEquals(t0, Trip.startedAt);
+        assertEquals(2, Trip.points);
+        assertEquals(1500, Trip.meters, 5);
+        FakeStore.Stored s = store.newest();
+        assertEquals(t0 / 1000, s.startedAt());
+        assertEquals(Track.micro(PARK_LAT), s.fixes.get(0)[1]);
+        assertEquals(Track.micro(PARK_LON), s.fixes.get(0)[2]);
+    }
+
+    @Test
+    public void theFirstFixStartsTheDriveWhenTheWaitWasTooLong() {
+        Trip.armSeed(t0, PARK_LAT, PARK_LON);
+        // A minute past the window: by now the car could have come from anywhere.
+        assertTrue(fixNorthOfPark(t0 + Trip.SEED_WINDOW_MS + 60_000, 1000));
+
+        assertEquals(t0 + Trip.SEED_WINDOW_MS + 60_000, Trip.startedAt);
+        assertEquals(1, Trip.points);
+        assertEquals(0, Trip.meters, 0.001);
+    }
+
+    @Test
+    public void theFirstFixStartsTheDriveWhenTheCarIsTooFarFromWhereItParked() {
+        Trip.armSeed(t0, PARK_LAT, PARK_LON);
+        // Half a minute and two and a half kilometres: not a car pulling out of a
+        // parking space, so the parking spot is not where this drive began.
+        assertTrue(fixNorthOfPark(t0 + 30_000, 2500));
+
+        assertEquals(t0 + 30_000, Trip.startedAt);
+        assertEquals(1, Trip.points);
+    }
+
+    @Test
+    public void everyMinuteOfWaitingAllowsAnotherTwoKilometres() {
+        Trip.armSeed(t0, PARK_LAT, PARK_LON);
+        // Just over a minute, so the allowance is four kilometres, not two.
+        assertTrue(fixNorthOfPark(t0 + 61_000, 3900));
+        assertEquals(t0, Trip.startedAt);
+
+        Trip.forget();
+        store = new FakeStore();
+        Trip.armSeed(t0, PARK_LAT, PARK_LON);
+        assertTrue(fixNorthOfPark(t0 + 61_000, 4100));
+        assertEquals("beyond the allowance, this is a new start", t0 + 61_000, Trip.startedAt);
+    }
+
+    @Test
+    public void theLastMomentOfTheWindowStillCounts() {
+        Trip.armSeed(t0, PARK_LAT, PARK_LON);
+        assertTrue(fixNorthOfPark(t0 + Trip.SEED_WINDOW_MS, 5900)); // three minutes, six allowed
+        assertEquals(t0, Trip.startedAt);
+    }
+
+    @Test
+    public void theSeededLegIsCountedEvenThoughItIsLongerThanAGpsJump() {
+        Trip.armSeed(t0, PARK_LAT, PARK_LON);
+        // Longer than MAX_STEP_M, which would normally be dismissed as a jump. Both
+        // ends are known positions here, so the leg was driven and it counts.
+        assertTrue(fixNorthOfPark(t0 + 120_000, 2500));
+        assertTrue("the leg is longer than a step may be", 2500 > Trip.MAX_STEP_M);
+        assertEquals(2500, Trip.meters, 5);
+    }
+
+    @Test
+    public void theParkingSpotIsOfferedToOneDriveOnly() {
+        Trip.armSeed(t0, PARK_LAT, PARK_LON);
+        fixNorthOfPark(t0 + 30_000, 1000);
+        long first = Trip.currentId();
+
+        // A long pause ends that drive; the next one begins on its own evidence,
+        // even though it starts near the same spot and soon after recording began.
+        long later = t0 + 30_000 + Trip.GAP_MS + 60_000;
+        assertTrue(fixNorthOfPark(later, 1200));
+
+        assertNotEquals(first, Trip.currentId());
+        assertEquals(later, Trip.startedAt);
+        assertEquals(1, Trip.points);
+    }
+
+    @Test
+    public void theParkingSpotIsNotUsedWhileADriveIsAlreadyOpen() {
+        fix(t0, PARK_LAT, PARK_LON); // a drive in progress
+        long id = Trip.currentId();
+        Trip.armSeed(t0 + 1000, 50.0, 20.0); // as a restarted service would offer
+
+        assertTrue(fixNorthOfPark(t0 + 2000, 100));
+        assertEquals("the open drive was replaced", id, Trip.currentId());
+        assertEquals(t0, Trip.startedAt);
+    }
+
+    @Test
+    public void forgettingTheDriveForgetsTheParkingSpot() {
+        Trip.armSeed(t0, PARK_LAT, PARK_LON);
+        Trip.forget();
+        assertTrue(fixNorthOfPark(t0 + 30_000, 1000));
+        assertEquals(t0 + 30_000, Trip.startedAt);
+        assertEquals(1, Trip.points);
+    }
+
+    @Test
+    public void aFixFromBeforeRecordingStartedIsNotSeeded() {
+        // A receiver handing over a stale fix it had cached: older than the moment
+        // recording began, so it says nothing about where this drive starts.
+        assertFalse(Trip.seedApplies(t0, t0 - 1000, PARK_LAT, PARK_LON, PARK_LAT, PARK_LON));
+    }
 }

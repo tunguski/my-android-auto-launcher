@@ -93,6 +93,7 @@ public class MainActivity extends Activity {
     static final String EXTRA_WEATHER = "navi.weather";
     static final String EXTRA_SIZE = "navi.size";
     static final String EXTRA_HOME_POINT = "navi.home";
+    static final String EXTRA_NO_RECORDING = "navi.norecording";
 
     // Palette: everything muted, no white anywhere.
     static final int BG = 0xFF000000;
@@ -108,6 +109,9 @@ public class MainActivity extends Activity {
     private final Handler ui = new Handler(Looper.getMainLooper());
     private SharedPreferences prefs;
     private int H; // screen height in px; all sizes scale from it
+
+    /** True when a test asked this run not to record; see {@link #applyTestOverrides}. */
+    private boolean noRecording;
 
     private FrameLayout root; // opaque black, never dimmed
     private FrameLayout content; // every screen lives here, this is what dims
@@ -190,6 +194,12 @@ public class MainActivity extends Activity {
             // A damaged cache is simply ignored; the next fetch replaces it.
         }
 
+        // Read before recording could start, so a test that asks for no recording
+        // never gets a fix in the window between starting the service and the
+        // overrides below being applied.
+        noRecording =
+                debuggable() && getIntent() != null && getIntent().hasExtra(EXTRA_NO_RECORDING);
+
         if (checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION)
                 != PackageManager.PERMISSION_GRANTED) {
             List<String> wanted = new ArrayList<>();
@@ -201,7 +211,7 @@ public class MainActivity extends Activity {
             }
             requestPermissions(wanted.toArray(new String[0]), 1);
         } else {
-            TripService.start(this);
+            startRecording();
         }
 
         applyTestOverrides(getIntent());
@@ -257,7 +267,7 @@ public class MainActivity extends Activity {
     @Override
     public void onRequestPermissionsResult(int rc, String[] perms, int[] res) {
         refreshLocationAndWeather();
-        TripService.start(this);
+        startRecording();
     }
 
     @Override
@@ -2053,6 +2063,18 @@ public class MainActivity extends Activity {
                 .start();
     }
 
+    /**
+     * Starts recording, unless a test asked this run not to.
+     *
+     * <p>A test that asserts what the screen shows before the first fix cannot have a live receiver
+     * feeding it one; see {@link #EXTRA_NO_RECORDING}.
+     */
+    private void startRecording() {
+        if (!noRecording) {
+            TripService.start(this);
+        }
+    }
+
     private int px(float fractionOfHeight) {
         return Math.round(H * fractionOfHeight);
     }
@@ -2062,7 +2084,7 @@ public class MainActivity extends Activity {
     /**
      * Lets a test or the screenshot script put the launcher into an exact state: which screen is
      * open, which canned weather reading is shown, which size variant and which home point are
-     * stored.
+     * stored, and whether this run records at all.
      *
      * <p>Every extra is ignored unless the APK is debuggable, so a release build cannot be steered
      * from outside. Weather readings are read from {@code <externalFilesDir>/wx/<name>.json}, a
@@ -2076,6 +2098,19 @@ public class MainActivity extends Activity {
             return false;
         }
         boolean handled = false;
+
+        if (i.hasExtra(EXTRA_NO_RECORDING)) {
+            // Before anything is drawn: a drive picked up here would change what the
+            // trip screen says. Not marked as handled - it steers recording, not
+            // which screen is shown.
+            noRecording = true;
+            try {
+                stopService(new Intent(this, TripService.class));
+            } catch (Throwable ignored) {
+                // Not running, or the ROM refused; forgetting the drive is what matters.
+            }
+            Trip.forget();
+        }
 
         if (i.hasExtra(EXTRA_HOME_POINT)) {
             String[] parts = i.getStringExtra(EXTRA_HOME_POINT).split(",", 3);

@@ -33,18 +33,27 @@ final class FolderBackup implements Backup {
             throw new IOException("cannot create " + dir);
         }
         // Written beside the target and renamed, so a half-written file never
-        // looks like a complete export.
+        // looks like a complete export. The temporary name carries the thread, so
+        // two runs that overlap cannot write the same scratch file and then find
+        // each other's rename has consumed it - which would leave a trip marked
+        // as exported with nothing on disk.
         File target = new File(dir, name);
-        File temp = new File(dir, name + ".part");
+        File temp = new File(dir, name + "." + Thread.currentThread().getId() + ".part");
         try (FileOutputStream out = new FileOutputStream(temp)) {
             out.write(data);
             out.getFD().sync();
         }
-        if (target.exists() && !target.delete()) {
-            throw new IOException("cannot replace " + target);
-        }
+        // The rename replaces an existing export outright where the filesystem
+        // allows it, which leaves no window in which neither file is there.
         if (!temp.renameTo(target)) {
-            throw new IOException("cannot finish " + target);
+            if (target.exists() && !target.delete()) {
+                temp.delete();
+                throw new IOException("cannot replace " + target);
+            }
+            if (!temp.renameTo(target)) {
+                temp.delete();
+                throw new IOException("cannot finish " + target);
+            }
         }
         return target.getAbsolutePath();
     }
