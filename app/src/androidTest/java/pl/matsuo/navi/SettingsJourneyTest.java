@@ -1,15 +1,18 @@
 package pl.matsuo.navi;
 
+import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentation;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
+import android.graphics.Bitmap;
 import android.graphics.Rect;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.LargeTest;
 import androidx.test.uiautomator.By;
 import androidx.test.uiautomator.UiObject2;
+import androidx.test.uiautomator.Until;
 import java.util.regex.Pattern;
 import org.junit.Before;
 import org.junit.Test;
@@ -254,5 +257,55 @@ public class SettingsJourneyTest extends LauncherTest {
         // version of the gesture is covered on the app list.
         swipeRightSlowly();
         assertVisible(R.string.tile_nav);
+    }
+
+    @Test
+    public void bothPictureButtonsAreOffered() throws Exception {
+        open("look");
+        // Scrolled to the buttons, not to the heading above them: the heading
+        // can sit on the last line of the panel with its card still below the
+        // fold, and a settings panel is taller than the screen by design.
+        assertNotNull(scrollTo(R.string.pics_lego));
+        assertNotNull(scrollTo(R.string.pics_kitty));
+    }
+
+    @Test
+    public void aPictureTakesTheWholeScreenAndATouchBringsTheSettingsBack() throws Exception {
+        open("look");
+        scrollTo(R.string.pics_lego).click();
+        device.waitForIdle();
+
+        // Nothing of the settings is left on screen: the picture is the screen.
+        assertTrue(
+                "the settings panel is still showing behind the picture",
+                device.wait(Until.gone(By.text(str(R.string.look_title))), TIMEOUT_MS));
+
+        // One of the two honest outcomes, and the test says which. A build made
+        // from the public source carries no Unsplash key, and the pictures are
+        // fetched into the APK by tools/pics.sh rather than committed, so a
+        // clean checkout shows the notice; once they are there, a picture is
+        // drawn and the screen is no longer uniformly black.
+        boolean saidItHasNone = device.hasObject(By.text(str(R.string.pics_none)));
+        if (!saidItHasNone) {
+            assertTrue("neither a picture nor a word about why not", somethingIsDrawn());
+        }
+
+        device.click(device.getDisplayWidth() / 2, device.getDisplayHeight() / 2);
+        assertVisible(R.string.look_title);
+    }
+
+    /** Whether the screen holds more than one colour, which a drawn photograph always does. */
+    private boolean somethingIsDrawn() {
+        Bitmap shot = getInstrumentation().getUiAutomation().takeScreenshot();
+        assertNotNull("screenshot failed", shot);
+        int first = shot.getPixel(0, 0);
+        for (int x = 0; x < shot.getWidth(); x += 16) {
+            for (int y = 0; y < shot.getHeight(); y += 16) {
+                if (shot.getPixel(x, y) != first) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }

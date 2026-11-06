@@ -145,4 +145,13 @@
     <string name="storage_imported">Zachowane pliki CSV po imporcie: %1$s</string>
     <string name="storage_delete_imported">Usuń zaimportowane pliki CSV</string>
     <string name="storage_deleted">Usunięto %1$d plików</string>
+    <!-- Obrazki -->
+    <string name="pics_section">Obrazki</string>
+    <string name="pics_lego">Lego SW</string>
+    <string name="pics_kitty">Kotki</string>
+    <string name="pics_note">Losowy obrazek na pełnym ekranie. Dotknij, żeby wrócić.</string>
+    <string name="pics_loading">Pobieram obrazek…</string>
+    <string name="pics_none">Ta wersja nie ma obrazków</string>
+    <string name="pics_credit">%1$s / Unsplash</string>
+
 </resources>

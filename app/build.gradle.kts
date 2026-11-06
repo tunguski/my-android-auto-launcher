@@ -45,6 +45,14 @@ android {
         versionCode = appVersionCode
         versionName = appVersionName
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Unsplash, for the pictures in the settings. Declared here rather than
+        // in strings.xml so that the repository, which is public, never holds a
+        // key: it comes from keystore.properties locally or NAVI_UNSPLASH_KEY in
+        // CI, and is empty in a build made from the source alone. Empty means
+        // the pictures come from the ones bundled in the APK, which is the whole
+        // reason they are bundled.
+        resValue("string", "unsplash_key", secret("unsplashKey", "NAVI_UNSPLASH_KEY") ?: "")
     }
 
     sourceSets {

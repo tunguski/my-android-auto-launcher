@@ -275,6 +275,31 @@ flags as unverified: whether the device flow accepts the `drive.file` scope at a
 whether an OAuth client left in *Testing* status expires its refresh tokens after a few
 days.
 
+### Pictures
+
+Two buttons at the bottom of the settings, one for Lego Star Wars and one for cats, each
+showing a random picture full screen until it is touched. Twenty of each travel inside the
+APK, under `assets/pics/`, so a car that never sees a network still has something to show.
+
+They are fetched once, by hand, with `NAVI_UNSPLASH_KEY=... sh tools/pics.sh`, and the
+result is committed — not fetched during the build. A build that reaches the open internet
+fails when someone else's server does, and four test shards fetching forty photographs each
+would empty an Unsplash demo quota before the tests began. The same reasoning as
+`tools/wx-fixtures.sh`.
+
+With an Unsplash access key compiled in, the buttons go to the network first and fall back
+to the bundled twenty, which is the point of the key: the whole of Unsplash rather than
+forty pictures you will come to know by heart. The key is **not** in this source and must
+not be put in it — this repository is public. It is a `resValue` in `app/build.gradle.kts`,
+read from `unsplashKey` in `keystore.properties` locally or `NAVI_UNSPLASH_KEY` in CI, and
+empty otherwise. Empty means offline, which is a working app, not a broken one.
+
+The pictures are used under the [Unsplash License](https://unsplash.com/license), which
+allows them to be copied and redistributed, including inside an application, without
+permission or attribution. `assets/pics/CREDITS.txt` names the photographers anyway, and a
+picture fetched over the network carries its photographer's name in the corner, as the
+Unsplash API terms ask.
+
 `targetSdk` is deliberately 34, not 35, to avoid Android 15's forced edge-to-edge layout.
 
 ## Known limitations

@@ -417,6 +417,22 @@ If this unit was upgraded from an older version, the imported CSV files are list
 here with the space they still occupy and a button to delete them. Nothing deletes
 them on its own.
 
+## Pictures
+
+The only thing in the settings that is not a setting. **Lego SW** and **Kitty**
+each show one random picture, as large as the screen, until you touch it — and a
+touch anywhere brings the settings straight back.
+
+Twenty pictures of each kind travel inside the app, so this works with no network
+at all, parked in a garage. The same picture never comes up twice in a row. If the
+unit is online and this build was made with an Unsplash key, it fetches from the
+whole of Unsplash instead and names the photographer in the corner; if that takes
+too long or fails, it falls back to the ones it already has without saying
+anything.
+
+It is deliberately here rather than on the black screen. The home row is for
+driving.
+
 > If the launcher is not default, the unit will show its own screen after the
 > ignition is switched off and on again. This is the first thing to check if that
 > happens.

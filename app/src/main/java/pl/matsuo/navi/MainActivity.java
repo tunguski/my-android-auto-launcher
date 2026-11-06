@@ -14,6 +14,8 @@ import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.content.res.ColorStateList;
 import android.content.res.Configuration;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.ColorMatrix;
 import android.graphics.ColorMatrixColorFilter;
 import android.graphics.Typeface;
@@ -25,6 +27,7 @@ import android.location.Geocoder;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.net.ConnectivityManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -54,8 +57,11 @@ import android.widget.TextClock;
 import android.widget.TextView;
 import android.widget.Toast;
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileReader;
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -121,6 +127,7 @@ public class MainActivity extends Activity {
     private View lookView;
     private View statsView;
     private View historyView;
+    private View picView;
     private RouteView routeView;
     private TextView statTime;
     private TextView statDistance;
@@ -648,6 +655,10 @@ public class MainActivity extends Activity {
         if (historyView != null) {
             content.removeView(historyView);
             historyView = null;
+        }
+        if (picView != null) {
+            content.removeView(picView);
+            picView = null;
         }
         homeView.setVisibility(View.VISIBLE);
     }
@@ -1341,6 +1352,7 @@ public class MainActivity extends Activity {
         addAppearanceGroup(left);
         addHomePointGroup(left);
         addHomeRoleGroup(left);
+        addPicturesGroup(left);
         addRecordingSection(group(right, getString(R.string.record_section)));
         addUpdateSection(group(right, getString(R.string.update_section)));
         addBackupSection(group(right, getString(R.string.backup_section)));
@@ -1534,6 +1546,221 @@ public class MainActivity extends Activity {
                         getString(R.string.home_picker),
                         () -> safeStart(new Intent(Settings.ACTION_HOME_SETTINGS))));
     }
+
+    // ───────────────────────────── PICTURES ─────────────────────────────
+
+    /**
+     * Two buttons, and behind each one a full screen of something that is not a road.
+     *
+     * <p>The one thing in the settings that is there to be enjoyed rather than set. It is in the
+     * settings and not on the home screen on purpose: the home row is for driving, and a picture is
+     * for a car that has stopped.
+     */
+    private void addPicturesGroup(LinearLayout column) {
+        LinearLayout card = group(column, getString(R.string.pics_section));
+        card.addView(settingNote(getString(R.string.pics_note)));
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.addView(flatButton(getString(R.string.pics_lego), () -> showPicture(Pics.LEGO)));
+        row.addView(flatButton(getString(R.string.pics_kitty), () -> showPicture(Pics.KITTY)));
+        card.addView(row);
+    }
+
+    /**
+     * A picture of the given set, as large as the screen, gone at a touch.
+     *
+     * <p>Shown before it is fetched, saying so, because online it travels over whatever connection
+     * a car has and a screen that does nothing for two seconds looks broken. Every touch anywhere
+     * returns to the settings, including a touch during the wait: nothing here is worth being
+     * trapped in.
+     */
+    private void showPicture(String set) {
+        if (lookView != null) {
+            content.removeView(lookView);
+            lookView = null;
+            draggedSideways = null;
+        }
+        FrameLayout frame = new FrameLayout(this);
+        frame.setBackgroundColor(0xFF000000);
+
+        ImageView shot = new ImageView(this);
+        shot.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        frame.addView(shot, new FrameLayout.LayoutParams(-1, -1));
+
+        TextView notice = text(getString(R.string.pics_loading), 0.045f, TEXT_DIM);
+        notice.setGravity(Gravity.CENTER);
+        frame.addView(notice, new FrameLayout.LayoutParams(-1, -1));
+
+        TextView credit = text("", 0.03f, TEXT_DIM);
+        credit.setPadding(px(0.02f), px(0.01f), px(0.02f), px(0.01f));
+        FrameLayout.LayoutParams creditLp = new FrameLayout.LayoutParams(-2, -2);
+        creditLp.gravity = Gravity.BOTTOM | Gravity.START;
+        frame.addView(credit, creditLp);
+
+        frame.setOnClickListener(v -> showLook());
+        picView = frame;
+        content.addView(picView);
+        homeView.setVisibility(View.INVISIBLE);
+        fetchPicture(set, frame, shot, notice, credit);
+    }
+
+    /**
+     * Finds a picture and puts it on screen, off the main thread.
+     *
+     * <p>Online first when a key was built in, because the point of a key is to see something the
+     * bundled twenty do not hold; the APK is what answers when there is no key, no signal or no
+     * patience left at the far end. The views are touched only back on the launcher's own thread,
+     * and only if the screen is still the one that asked - a driver who taps away during the wait
+     * must not have a cat land on the settings afterwards.
+     */
+    private void fetchPicture(
+            String set, View owner, ImageView shot, TextView notice, TextView credit) {
+        String key = getString(R.string.unsplash_key);
+        boolean online = Pics.preferOnline(key, hasNetwork());
+        new Thread(
+                        () -> {
+                            Bitmap bitmap = null;
+                            String who = "";
+                            if (online) {
+                                Pics.Shot found = askUnsplash(set, key);
+                                if (found != null) {
+                                    bitmap = download(found.url);
+                                    who = found.who;
+                                }
+                            }
+                            if (bitmap == null) {
+                                bitmap = fromApk(set);
+                            }
+                            final Bitmap drawn = bitmap;
+                            final String credited = who;
+                            runOnUiThread(
+                                    () -> {
+                                        if (picView != owner) {
+                                            return; // the driver has moved on
+                                        }
+                                        if (drawn == null) {
+                                            notice.setText(getString(R.string.pics_none));
+                                            return;
+                                        }
+                                        shot.setImageBitmap(drawn);
+                                        notice.setVisibility(View.GONE);
+                                        if (!credited.isEmpty()) {
+                                            credit.setText(
+                                                    getString(R.string.pics_credit, credited));
+                                        }
+                                    });
+                        },
+                        "pic")
+                .start();
+    }
+
+    /** Whether anything is likely to answer; a wrong guess costs one wait, not a crash. */
+    private boolean hasNetwork() {
+        try {
+            ConnectivityManager cm = getSystemService(ConnectivityManager.class);
+            return cm != null && cm.getActiveNetwork() != null;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    private Pics.Shot askUnsplash(String set, String key) {
+        try {
+            HttpURLConnection c =
+                    (HttpURLConnection) new URL(Pics.randomUrl(set, key.trim())).openConnection();
+            try {
+                c.setConnectTimeout(PIC_TIMEOUT_MS);
+                c.setReadTimeout(PIC_TIMEOUT_MS);
+                if (c.getResponseCode() != 200) {
+                    return null;
+                }
+                return Pics.fromRandom(new String(readAll(c.getInputStream()), "UTF-8"));
+            } finally {
+                c.disconnect();
+            }
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    private Bitmap download(String url) {
+        try {
+            HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+            try {
+                c.setConnectTimeout(PIC_TIMEOUT_MS);
+                c.setReadTimeout(PIC_TIMEOUT_MS);
+                if (c.getResponseCode() != 200) {
+                    return null;
+                }
+                return decode(readAll(c.getInputStream()));
+            } finally {
+                c.disconnect();
+            }
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /** One of the pictures that travel inside the APK, or null if this build carries none. */
+    private Bitmap fromApk(String set) {
+        try {
+            String dir = Pics.assetDir(set);
+            String[] names = getAssets().list(dir);
+            if (names == null) {
+                return null;
+            }
+            Integer last = lastPicture.get(set);
+            int at = Pics.pickOther(names.length, last == null ? -1 : last, random);
+            if (at < 0) {
+                return null;
+            }
+            lastPicture.put(set, at);
+            try (InputStream in = getAssets().open(dir + "/" + names[at])) {
+                return decode(readAll(in));
+            }
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /**
+     * A bitmap no larger than it needs to be.
+     *
+     * <p>Measured before it is read: the head unit has little memory, and a photograph from the
+     * open internet can be any size at all.
+     */
+    private Bitmap decode(byte[] data) {
+        if (data == null || data.length == 0) {
+            return null;
+        }
+        BitmapFactory.Options bounds = new BitmapFactory.Options();
+        bounds.inJustDecodeBounds = true;
+        BitmapFactory.decodeByteArray(data, 0, data.length, bounds);
+        BitmapFactory.Options opts = new BitmapFactory.Options();
+        opts.inSampleSize = 1;
+        int wanted = Math.max(getResources().getDisplayMetrics().widthPixels, 1);
+        while (bounds.outWidth / opts.inSampleSize > 2 * wanted) {
+            opts.inSampleSize *= 2;
+        }
+        return BitmapFactory.decodeByteArray(data, 0, data.length, opts);
+    }
+
+    private static byte[] readAll(InputStream in) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        byte[] buf = new byte[8192];
+        int n;
+        while ((n = in.read(buf)) > 0) {
+            out.write(buf, 0, n);
+        }
+        in.close();
+        return out.toByteArray();
+    }
+
+    /** How long a picture is waited for, at either end of the fetch. */
+    private static final int PIC_TIMEOUT_MS = 8000;
+
+    private final java.util.Map<String, Integer> lastPicture = new java.util.HashMap<>();
+    private final java.util.Random random = new java.util.Random();
 
     // ───────────────────────────── RECORDING ─────────────────────────────
 
