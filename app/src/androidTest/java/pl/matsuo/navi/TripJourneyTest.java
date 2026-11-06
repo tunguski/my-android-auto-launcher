@@ -204,4 +204,64 @@ public class TripJourneyTest extends LauncherTest {
         open("trip");
         assertVisible(R.string.stats_distance);
     }
+
+    // ───────────────────────── three on the strip, the rest in the table ─────────────────────────
+
+    /** Five finished drives, so the strip has more than it is allowed to show. */
+    private void installFiveFinishedDrives() {
+        TripDb db = TripDb.of(context);
+        for (int i = 0; i < 5; i++) {
+            long id =
+                    db.open(1_700_000_000L + i * 86_400L, Track.micro(52.0 + i), Track.micro(21.0));
+            db.append(id, 1_700_000_060L + i * 86_400L, Track.micro(52.1 + i), Track.micro(21.1));
+            db.close(id);
+        }
+    }
+
+    @Test
+    public void theStripOffersThreeEarlierTripsAtMost() throws Exception {
+        installFiveFinishedDrives();
+        open("trip");
+        assertVisible(R.string.stats_history);
+
+        // Three stored drives plus the one being recorded, and no more: a strip
+        // long enough to scroll is a strip nobody reads at the wheel.
+        List<UiObject2> chips =
+                device.findObjects(By.clazz("android.widget.TextView").textContains("km"));
+        assertTrue(
+                "the strip shows more than three earlier trips: " + chips.size(),
+                chips.size() <= 4);
+    }
+
+    @Test
+    public void theHistoryButtonOpensATableOfEveryTrip() throws Exception {
+        installFiveFinishedDrives();
+        open("trip");
+        tapText(R.string.hist_title);
+
+        assertVisible(R.string.hist_date);
+        assertVisible(R.string.hist_start);
+        assertTrue(
+                "the table does not say how many trips there are",
+                hasTextContaining(str(R.string.hist_count, 5)));
+    }
+
+    @Test
+    public void theHistoryTableSaysSoWhenNothingWasRecorded() throws Exception {
+        open("trip");
+        tapText(R.string.hist_title);
+
+        assertVisible(R.string.hist_none);
+    }
+
+    @Test
+    public void swipingRightOnTheHistoryTableReturnsToTheBlackScreen() throws Exception {
+        installFiveFinishedDrives();
+        open("trip");
+        tapText(R.string.hist_title);
+        assertVisible(R.string.hist_date);
+
+        swipeRight();
+        assertVisible(R.string.tile_nav);
+    }
 }

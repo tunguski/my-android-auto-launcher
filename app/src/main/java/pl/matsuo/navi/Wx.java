@@ -139,6 +139,27 @@ final class Wx {
         return -1;
     }
 
+    /**
+     * Index of the first hourly slot strictly after {@code isoNow}, or -1 if the series ends before
+     * it.
+     *
+     * <p>Not {@code hourIndex(..) + 1}: that only works while the current hour is in the series,
+     * and a forecast read from the cache after a night without a signal may begin hours or days
+     * later. The hourly strip used to fall back to the start of the array in that case, which
+     * showed the small hours of some past day as if they were the afternoon ahead.
+     *
+     * <p>ISO timestamps of equal length sort as text, which is what makes the comparison legal.
+     */
+    static int nextHourIndex(JSONArray times, String isoNow) throws Exception {
+        String hour = isoNow.substring(0, 13);
+        for (int i = 0; i < times.length(); i++) {
+            if (times.getString(i).substring(0, 13).compareTo(hour) > 0) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
     /** WMO weather code as a sentence, by string resource id; 0 when unknown. */
     static int describe(int c) {
         if (c == 0) {

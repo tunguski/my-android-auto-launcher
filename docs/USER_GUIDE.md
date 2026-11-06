@@ -10,7 +10,7 @@ tap away and always comes back to that black screen.
 
 ![The home screen as it looks while driving](previews/home.png)
 
-This guide covers version 2.3. Every picture in it is a real screenshot of that
+This guide covers version 2.4. Every picture in it is a real screenshot of that
 build on a 1280×720 head unit screen, taken automatically when the guide is
 produced, so nothing here is a mock-up.
 
@@ -93,6 +93,14 @@ screen. The launcher can never be closed, and Back on the home screen does
 nothing at all — which is the point: nothing the driver presses can leave them
 looking at a blank unit.
 
+On the weather screen, the app list, the settings panel and the trip history, a
+**swipe to the right** anywhere on the screen does the same thing. The Back arrow
+sits in a corner, and a corner is the hardest place to hit while the car is
+moving; a swipe needs no aim. Only that one direction goes back, so scrolling
+sideways inside a panel still scrolls. The trip screen itself has no such gesture:
+its strip of earlier trips scrolls sideways, and the two movements would be the
+same.
+
 ---
 
 # The weather screen
@@ -168,9 +176,16 @@ is the latest position.
 
 ## Earlier trips
 
-Along the bottom are the recorded trips, newest first, each with its distance and
-duration. **now** is the drive in progress. Tapping any of them shows that trip
-instead.
+Along the bottom of the screen are the three most recent trips, newest first, each
+with its distance and duration. **now** is the drive in progress. Tapping any of
+them shows that trip instead.
+
+Three, not all of them: a strip long enough to scroll is a strip nobody reads at
+the wheel. Everything else is behind the **History** button in the corner, which
+opens a table of every stored trip — date, start time, duration and distance, one
+row each. Tapping a row shows that trip on the trip screen.
+
+![Every stored trip as a table](previews/trip_history.png)
 
 ![An earlier trip: a short errand around town](previews/trip_earlier.png)
 
@@ -397,10 +412,19 @@ them on its own.
 
 ![All apps](previews/apps.png)
 
-Every launchable app on the unit, sorted by name in the current language. The
-original home screens the unit came with are listed first, labelled
-**Original screen: …**, so going back to the stock interface is always one tap
-away.
+Every launchable app on the unit, in a grid five columns wide. The icons are as
+large as that grid allows, because an icon aimed at from a moving car is worth
+more than the extra app a sixth column would fit.
+
+The order is not alphabetical. The original home screens the unit came with are
+listed first, labelled **Original screen: …**, so going back to the stock
+interface is always one tap away. Then come the handful of apps actually reached
+while driving — system settings, Gmail, Maps, Files, Chrome, Play, YouTube — and
+only then everything else, sorted by name in the current language. An app the unit
+does not have simply does not appear, and nothing else moves.
+
+Holding an entry opens its app-info page, which is where an app is uninstalled.
+The launcher does not list itself.
 
 The **Screen layout** button in the corner opens the settings described above.
 

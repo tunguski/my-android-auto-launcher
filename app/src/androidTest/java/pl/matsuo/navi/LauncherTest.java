@@ -236,6 +236,19 @@ public abstract class LauncherTest {
         device.waitForIdle();
     }
 
+    /**
+     * A quick drag from a quarter of the way across the screen to near its right edge.
+     *
+     * <p>Not from the very edge: that is where Android's own back gesture lives, and a test
+     * starting there would be proving the system's behaviour rather than the launcher's. Few steps,
+     * because the launcher looks for a fling and a slow drag is not one.
+     */
+    void swipeRight() {
+        int y = device.getDisplayHeight() / 2;
+        device.swipe(device.getDisplayWidth() / 4, y, device.getDisplayWidth() * 9 / 10, y, 10);
+        device.waitForIdle();
+    }
+
     // ───────────────────────────── assertions ─────────────────────────────
 
     String str(int res) {

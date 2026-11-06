@@ -97,6 +97,13 @@ public class ScreenshotTest extends LauncherTest {
     }
 
     @Test
+    public void shot06cTripHistory() throws Exception {
+        open("trip", MainActivity.EXTRA_HOME_POINT, "52.2297,21.0122,Warszawa");
+        tapText(R.string.hist_title);
+        screenshot("trip_history");
+    }
+
+    @Test
     public void shot07TripWithoutHistory() throws Exception {
         resetState();
         open("trip");

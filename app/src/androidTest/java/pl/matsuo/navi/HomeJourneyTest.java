@@ -125,4 +125,38 @@ public class HomeJourneyTest extends LauncherTest {
         // entry rather than looking once and giving up.
         waitFor(By.textContains(str(R.string.apps_original_home).replace("%1$s", "").trim()));
     }
+
+    // ───────────────────────── swiping back to the black screen ─────────────────────────
+
+    @Test
+    public void swipingRightOnTheAppListReturnsToTheBlackScreen() throws Exception {
+        tapText(R.string.tile_apps);
+        assertVisible(R.string.apps_title);
+
+        swipeRight();
+        assertVisible(R.string.tile_nav);
+    }
+
+    @Test
+    public void swipingRightOnTheWeatherScreenReturnsToTheBlackScreen() throws Exception {
+        tapText(R.string.tile_weather);
+        assertVisible(R.string.weather_title);
+
+        swipeRight();
+        assertVisible(R.string.tile_nav);
+    }
+
+    @Test
+    public void swipingLeftDoesNotLeaveTheScreen() throws Exception {
+        // Only one direction goes back, or every sideways scroll inside a panel
+        // would throw the driver out of it.
+        tapText(R.string.tile_apps);
+        assertVisible(R.string.apps_title);
+
+        int y = device.getDisplayHeight() / 2;
+        device.swipe(device.getDisplayWidth() * 9 / 10, y, device.getDisplayWidth() / 4, y, 10);
+        device.waitForIdle();
+
+        assertVisible(R.string.apps_title);
+    }
 }

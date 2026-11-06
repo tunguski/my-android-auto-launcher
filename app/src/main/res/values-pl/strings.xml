@@ -72,6 +72,11 @@
     <string name="stats_history">Wcześniejsze trasy</string>
     <string name="stats_route_desc">Kształt zapisanej trasy</string>
     <string name="stats_current">teraz</string>
+    <string name="hist_title">Historia</string>
+    <string name="hist_date">Data</string>
+    <string name="hist_start">Start</string>
+    <string name="hist_none">Nie zapisano jeszcze żadnej trasy</string>
+    <string name="hist_count">tras: %1$d</string>
 
     <string name="home_section">Punkt domu</string>
     <string name="home_set_here">Ustaw tutaj dom</string>

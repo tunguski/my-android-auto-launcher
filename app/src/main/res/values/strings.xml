@@ -91,6 +91,11 @@
     <string name="stats_history">Earlier trips</string>
     <string name="stats_route_desc">Shape of the recorded route</string>
     <string name="stats_current">now</string>
+    <string name="hist_title">History</string>
+    <string name="hist_date">Date</string>
+    <string name="hist_start">Start</string>
+    <string name="hist_none">No trips recorded yet</string>
+    <string name="hist_count">%1$d trips</string>
 
     <!-- Home point -->
     <string name="home_section">Home point</string>

@@ -263,4 +263,50 @@ public class WxTest {
             assertTrue("no short word for code " + c, Wx.describeShort(c) != 0);
         }
     }
+
+    // ──────────────────────── the hour the strip starts at ────────────────────────
+
+    private static JSONArray times(String... iso) {
+        return new JSONArray(Arrays.asList(iso));
+    }
+
+    @Test
+    public void theStripStartsAtTheHourAfterThisOne() throws Exception {
+        JSONArray t = times("2026-11-06T07:00", "2026-11-06T08:00", "2026-11-06T09:00");
+
+        assertEquals(2, Wx.nextHourIndex(t, "2026-11-06T08:41"));
+    }
+
+    @Test
+    public void aForecastThatStartsLaterBeginsAtItsFirstHour() throws Exception {
+        JSONArray t = times("2026-11-06T15:00", "2026-11-06T16:00");
+
+        assertEquals(0, Wx.nextHourIndex(t, "2026-11-06T08:41"));
+    }
+
+    @Test
+    public void aForecastEntirelyBehindUsHasNoNextHour() throws Exception {
+        // The old code fell back to index 0 here, which put the small hours of a
+        // past day on screen as if they were the afternoon ahead.
+        JSONArray t = times("2026-11-05T01:00", "2026-11-05T02:00", "2026-11-05T03:00");
+
+        assertEquals(-1, Wx.nextHourIndex(t, "2026-11-06T08:41"));
+    }
+
+    @Test
+    public void theLastHourOfTheSeriesLeavesNothingAfterIt() throws Exception {
+        JSONArray t = times("2026-11-06T07:00", "2026-11-06T08:00");
+
+        assertEquals(-1, Wx.nextHourIndex(t, "2026-11-06T08:00"));
+    }
+
+    @Test
+    public void theCurrentHourItselfIsNeverTheFirstOneShown() throws Exception {
+        JSONArray t = times("2026-11-06T08:00", "2026-11-06T09:00");
+
+        assertEquals(
+                "the hour already half gone is not the hour ahead",
+                1,
+                Wx.nextHourIndex(t, "2026-11-06T08:00"));
+    }
 }

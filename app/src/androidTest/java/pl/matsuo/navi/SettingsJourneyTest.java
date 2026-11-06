@@ -205,4 +205,15 @@ public class SettingsJourneyTest extends LauncherTest {
     private String str(int res, String arg) {
         return context.getString(res, arg);
     }
+
+    @Test
+    public void swipingRightOnTheSettingsPanelReturnsToTheBlackScreen() throws Exception {
+        open("look");
+        assertVisible(R.string.look_title);
+
+        // The panel scrolls vertically and is full of children that claim the
+        // touch stream; the gesture has to reach the launcher regardless.
+        swipeRight();
+        assertVisible(R.string.tile_nav);
+    }
 }

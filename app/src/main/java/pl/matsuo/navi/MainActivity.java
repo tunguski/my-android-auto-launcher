@@ -33,6 +33,7 @@ import android.os.Looper;
 import android.provider.Settings;
 import android.util.DisplayMetrics;
 import android.util.TypedValue;
+import android.view.GestureDetector;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
@@ -120,6 +121,7 @@ public class MainActivity extends Activity {
     private View appsView;
     private View lookView;
     private View statsView;
+    private View historyView;
     private RouteView routeView;
     private TextView statTime;
     private TextView statDistance;
@@ -282,6 +284,59 @@ public class MainActivity extends Activity {
     public void onBackPressed() {
         showHome(); // the launcher can never be "closed"
     }
+
+    /**
+     * A swipe to the right anywhere on a panel goes back to the black screen.
+     *
+     * <p>The same thing the Back arrow in the corner does, reachable without aiming: on a head unit
+     * the corner of the screen is the hardest place to hit while moving, and the ROM may have no
+     * navigation bar at all.
+     *
+     * <p>In {@code dispatchTouchEvent} rather than a touch listener on the panel, because the
+     * panels are full of children that claim the touch stream - a scrolling settings list, the app
+     * grid - and a listener on the parent would never see the gesture. This sees every event first
+     * and still hands it on, so nothing a panel does is disturbed.
+     *
+     * <p>Not on the trip screen: its history runs along a strip that scrolls sideways, and the two
+     * gestures would be the same movement.
+     */
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent e) {
+        if (swipeBack == null) {
+            swipeBack = new GestureDetector(this, new SwipeBack());
+        }
+        if (appsView != null || weatherView != null || lookView != null || historyView != null) {
+            swipeBack.onTouchEvent(e);
+        }
+        return super.dispatchTouchEvent(e);
+    }
+
+    private GestureDetector swipeBack;
+
+    /** Left to right, and more sideways than up and down. */
+    private final class SwipeBack extends GestureDetector.SimpleOnGestureListener {
+        @Override
+        public boolean onDown(MotionEvent e) {
+            return true; // without this no fling is ever reported
+        }
+
+        @Override
+        public boolean onFling(MotionEvent from, MotionEvent to, float vx, float vy) {
+            if (from == null || to == null) {
+                return false;
+            }
+            float dx = to.getX() - from.getX();
+            float dy = to.getY() - from.getY();
+            if (dx > H * SWIPE_MIN_W && Math.abs(dx) > 2 * Math.abs(dy)) {
+                showHome();
+                return true;
+            }
+            return false;
+        }
+    }
+
+    /** How far a swipe has to travel to count, as a fraction of the screen short side. */
+    private static final float SWIPE_MIN_W = 0.12f;
 
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
@@ -526,6 +581,10 @@ public class MainActivity extends Activity {
             content.removeView(statsView);
             statsView = null;
         }
+        if (historyView != null) {
+            content.removeView(historyView);
+            historyView = null;
+        }
         homeView.setVisibility(View.VISIBLE);
     }
 
@@ -566,6 +625,11 @@ public class MainActivity extends Activity {
         boolean isHome;
     }
 
+    /** Columns in the app grid, and the icon size that a column of that width allows. */
+    private static final int APP_COLUMNS = 5;
+
+    private static final float APP_ICON = 0.18f;
+
     private void showApps() {
         if (appsView != null) {
             return;
@@ -603,9 +667,17 @@ public class MainActivity extends Activity {
             a.icon = ri.loadIcon(pm);
             apps.add(a);
         }
-        // Sorted with the collation rules of the active language.
+        // The handful wanted while driving first, then the rest sorted with the
+        // collation rules of the active language.
         Collator collator = Collator.getInstance(Locale.getDefault());
-        apps.sort((x, y) -> collator.compare(x.label, y.label));
+        apps.sort(
+                (x, y) -> {
+                    int byRank =
+                            Integer.compare(
+                                    AppOrder.rank(x.cn.getPackageName()),
+                                    AppOrder.rank(y.cn.getPackageName()));
+                    return byRank != 0 ? byRank : collator.compare(x.label, y.label);
+                });
         list.addAll(apps);
 
         LinearLayout box = new LinearLayout(this);
@@ -631,8 +703,10 @@ public class MainActivity extends Activity {
         box.addView(hdr);
 
         GridView grid = new GridView(this);
-        grid.setNumColumns(GridView.AUTO_FIT);
-        grid.setColumnWidth(px(0.27f));
+        // Five fixed columns rather than as many as fit: a wider cell means a
+        // bigger icon, and an icon aimed at from a moving car is worth more than
+        // the extra app that would fit in a sixth column.
+        grid.setNumColumns(APP_COLUMNS);
         grid.setVerticalSpacing(px(0.03f));
         grid.setStretchMode(GridView.STRETCH_COLUMN_WIDTH);
         grid.setSelector(new ColorDrawable(0));
@@ -666,7 +740,7 @@ public class MainActivity extends Activity {
                         iv.setImageDrawable(a.icon);
                         iv.setColorFilter(muted);
                         iv.setAlpha(0.8f);
-                        cell.addView(iv, new LinearLayout.LayoutParams(px(0.13f), px(0.13f)));
+                        cell.addView(iv, new LinearLayout.LayoutParams(px(APP_ICON), px(APP_ICON)));
                         TextView tv = new TextView(MainActivity.this);
                         tv.setText(a.label);
                         tv.setTextColor(a.isHome ? TEXT : TEXT_DIM);
@@ -731,8 +805,11 @@ public class MainActivity extends Activity {
     /** The trip whose route is on screen, or null for the drive in progress. */
     private Long shownTrip;
 
-    /** How many past trips the history strip offers. */
+    /** How many past trips the history table lists. */
     private static final int HISTORY_LIMIT = 50;
+
+    /** How many of them the strip on the trip screen offers; the rest are in the table. */
+    private static final int STRIP_LIMIT = 3;
 
     private void showStats() {
         if (statsView != null) {
@@ -743,7 +820,17 @@ public class MainActivity extends Activity {
         box.setOrientation(LinearLayout.VERTICAL);
         box.setBackgroundColor(BG);
         box.setPadding(px(0.04f), px(0.03f), px(0.04f), px(0.03f));
-        box.addView(header(getString(R.string.stats_title)));
+        LinearLayout statsHdr = (LinearLayout) header(getString(R.string.stats_title));
+        TextView all = new TextView(this);
+        all.setText(R.string.hist_title);
+        all.setTextColor(TEXT);
+        all.setTextSize(TypedValue.COMPLEX_UNIT_PX, H * 0.045f);
+        all.setPadding(px(0.04f), px(0.02f), px(0.04f), px(0.02f));
+        all.setBackground(tileBg());
+        all.setOnClickListener(v -> showHistory());
+        statsHdr.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
+        statsHdr.addView(all);
+        box.addView(statsHdr);
 
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
@@ -779,6 +866,10 @@ public class MainActivity extends Activity {
                 new LinearLayout.LayoutParams(px(0.52f), ViewGroup.LayoutParams.WRAP_CONTENT));
         box.addView(row);
 
+        // Everything above keeps its place and the strip sits on the floor of the
+        // screen, where the hand reaches without the eyes leaving the road.
+        box.addView(new View(this), new LinearLayout.LayoutParams(-1, 0, 1f));
+
         box.addView(
                 text(getString(R.string.stats_history), 0.032f, TEXT_DIM), marginTop(px(0.025f)));
         box.addView(historyStrip());
@@ -792,15 +883,104 @@ public class MainActivity extends Activity {
     }
 
     /** The trip being recorded plus the stored ones, newest first. */
+    /**
+     * Every finished drive as a table.
+     *
+     * <p>The strip on the trip screen is for the drive just made; this is for looking something up,
+     * so it is a list with columns and it scrolls. A row opens that drive on the trip screen, which
+     * is the only reason anyone reads a table of drives.
+     *
+     * <p>The drive in progress is not here: {@code recent} returns finished drives, and a drive
+     * still being recorded has no duration to put in a column yet.
+     */
+    private void showHistory() {
+        if (historyView != null) {
+            return;
+        }
+        if (statsView != null) {
+            content.removeView(statsView);
+            statsView = null;
+            ui.removeCallbacks(statsTicker);
+        }
+        List<TripDb.Row> rows = TripDb.of(this).recent(HISTORY_LIMIT);
+
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setBackgroundColor(BG);
+        box.setPadding(px(0.04f), px(0.03f), px(0.04f), px(0.03f));
+
+        LinearLayout hdr = (LinearLayout) header(getString(R.string.hist_title));
+        hdr.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
+        hdr.addView(text(getString(R.string.hist_count, rows.size()), 0.04f, TEXT_DIM));
+        box.addView(hdr);
+
+        LinearLayout columns = new LinearLayout(this);
+        columns.setOrientation(LinearLayout.HORIZONTAL);
+        columns.setPadding(px(0.02f), 0, px(0.02f), px(0.012f));
+        columns.addView(cell(getString(R.string.hist_date), TEXT_DIM, 2f));
+        columns.addView(cell(getString(R.string.hist_start), TEXT_DIM, 1f));
+        columns.addView(cell(getString(R.string.stats_time), TEXT_DIM, 1f));
+        columns.addView(cell(getString(R.string.stats_distance), TEXT_DIM, 1f));
+        box.addView(columns);
+
+        LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        if (rows.isEmpty()) {
+            list.addView(text(getString(R.string.hist_none), 0.04f, TEXT_DIM));
+        }
+        SimpleDateFormat day = new SimpleDateFormat("EEE d MMM yyyy", Locale.getDefault());
+        SimpleDateFormat clock = new SimpleDateFormat("HH:mm", Locale.getDefault());
+        for (TripDb.Row r : rows) {
+            Date started = new Date(r.startedAt * 1000L);
+            LinearLayout line = new LinearLayout(this);
+            line.setOrientation(LinearLayout.HORIZONTAL);
+            line.setBackground(tileBg());
+            line.setPadding(px(0.02f), px(0.016f), px(0.02f), px(0.016f));
+            line.addView(cell(day.format(started), TEXT, 2f));
+            line.addView(cell(clock.format(started), TEXT_DIM, 1f));
+            line.addView(cell(Format.duration(r.durationMillis()), TEXT, 1f));
+            line.addView(cell(Format.distance(r.meters), TEXT, 1f));
+            long id = r.id;
+            line.setOnClickListener(
+                    v -> {
+                        showHome();
+                        showStats();
+                        selectTrip(id);
+                    });
+            list.addView(line, marginTop(px(0.01f)));
+        }
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(list);
+        box.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
+
+        historyView = box;
+        content.addView(historyView);
+        homeView.setVisibility(View.INVISIBLE);
+    }
+
+    /** One column of the history table. */
+    private TextView cell(String s, int color, float weight) {
+        TextView t = text(s, 0.036f, color);
+        t.setSingleLine(true);
+        t.setLayoutParams(new LinearLayout.LayoutParams(0, -2, weight));
+        return t;
+    }
+
     private View historyStrip() {
         LinearLayout strip = new LinearLayout(this);
         strip.setOrientation(LinearLayout.HORIZONTAL);
         strip.addView(
                 tripChip(null, getString(R.string.stats_current), Format.distance(Trip.meters)));
-        // One indexed query, where this used to open and parse every trip file.
-        for (TripDb.Row r : TripDb.of(this).recent(HISTORY_LIMIT)) {
+        // Three, and the rest behind the History button. A strip long enough to
+        // scroll is a strip nobody reads at the wheel, and the drive in progress
+        // may be among the rows, so one more is asked for than is shown.
+        int shown = 0;
+        for (TripDb.Row r : TripDb.of(this).recent(STRIP_LIMIT + 1)) {
             if (r.id == Trip.currentId()) {
                 continue;
+            }
+            if (shown++ == STRIP_LIMIT) {
+                break;
             }
             String when =
                     new SimpleDateFormat("d.MM HH:mm", Locale.getDefault())
@@ -817,6 +997,18 @@ public class MainActivity extends Activity {
         scroll.setHorizontalScrollBarEnabled(false);
         scroll.addView(strip);
         return scroll;
+    }
+
+    /**
+     * Puts a stored drive on the trip screen, as tapping its chip would.
+     *
+     * <p>The drive picked from the table is usually older than the three on the strip, so none of
+     * them comes up highlighted. The route and the figures are what was asked for.
+     */
+    private void selectTrip(long id) {
+        shownTrip = id;
+        updateStats();
+        refreshHistoryStrip();
     }
 
     private View tripChip(Long id, String title, String subtitle) {
@@ -1744,17 +1936,13 @@ public class MainActivity extends Activity {
             JSONArray hv = hourly.getJSONArray("temperature_2m");
             JSONArray hc = hourly.getJSONArray("weather_code");
             JSONArray hp = hourly.getJSONArray("precipitation_probability");
-            String nowIso = cur.getString("time").substring(0, 13);
-            int start = 0;
-            for (int i = 0; i < ht.length(); i++) {
-                if (ht.getString(i).startsWith(nowIso)) {
-                    start = i;
-                    break;
-                }
-            }
+            // The first slot after this hour, however stale the reading is. A
+            // forecast whose hours are all behind us says nothing about the drive
+            // ahead, so it gets no strip rather than a strip of the wrong hours.
+            int start = Wx.nextHourIndex(ht, cur.getString("time"));
             LinearLayout hours = new LinearLayout(this);
             hours.setOrientation(LinearLayout.HORIZONTAL);
-            for (int i = start + 1; i < Math.min(ht.length(), start + 13); i++) {
+            for (int i = start; i >= 0 && i < Math.min(ht.length(), start + 12); i++) {
                 LinearLayout c = new LinearLayout(this);
                 c.setOrientation(LinearLayout.VERTICAL);
                 c.setGravity(Gravity.CENTER_HORIZONTAL);
@@ -1770,12 +1958,14 @@ public class MainActivity extends Activity {
                                         TEXT_DIM)));
                 hours.addView(c);
             }
-            HorizontalScrollView hs = new HorizontalScrollView(this);
-            hs.setHorizontalScrollBarEnabled(false);
-            hs.addView(hours);
-            LinearLayout.LayoutParams hsLp = new LinearLayout.LayoutParams(-1, -2);
-            hsLp.setMargins(0, px(0.03f), 0, px(0.03f));
-            weatherContent.addView(hs, hsLp);
+            if (hours.getChildCount() > 0) {
+                HorizontalScrollView hs = new HorizontalScrollView(this);
+                hs.setHorizontalScrollBarEnabled(false);
+                hs.addView(hours);
+                LinearLayout.LayoutParams hsLp = new LinearLayout.LayoutParams(-1, -2);
+                hsLp.setMargins(0, px(0.03f), 0, px(0.03f));
+                weatherContent.addView(hs, hsLp);
+            }
 
             // The following days.
             JSONArray dt = daily.getJSONArray("time");
