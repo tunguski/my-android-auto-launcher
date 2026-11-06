@@ -468,10 +468,34 @@ public abstract class LauncherTest {
         device.waitForIdle();
         Bitmap bmp = getInstrumentation().getUiAutomation().takeScreenshot();
         assertNotNull("screenshot failed", bmp);
+        // An emulator rendering through the host GPU can hand back a frame of
+        // one flat colour instead of the screen, and nothing about that looks
+        // like a failure: the file is written, the script copies it over the
+        // stored preview, and the user guide quietly fills with black
+        // rectangles. Every screen here has a clock or a heading on it, so one
+        // colour means the capture failed rather than that the screen is empty.
+        assertTrue(
+                name + ": the screenshot came back as one flat colour, so nothing was captured",
+                hasMoreThanOneColour(bmp));
         try (OutputStream out = new FileOutputStream(new File(dir, name + ".png"))) {
             bmp.compress(Bitmap.CompressFormat.PNG, 100, out);
         }
         bmp.recycle();
+    }
+
+    /**
+     * Whether anything at all was drawn: sampled, because every pixel of 1280x720 is not needed.
+     */
+    private static boolean hasMoreThanOneColour(Bitmap bmp) {
+        int first = bmp.getPixel(0, 0);
+        for (int x = 0; x < bmp.getWidth(); x += 8) {
+            for (int y = 0; y < bmp.getHeight(); y += 8) {
+                if (bmp.getPixel(x, y) != first) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /** Copies a file, used when a test wants to keep a trip CSV for inspection. */

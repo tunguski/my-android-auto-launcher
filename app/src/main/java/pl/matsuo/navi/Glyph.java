@@ -15,6 +15,7 @@ public class Glyph extends View {
     public static final int WARN = 3;
     public static final int MUSIC = 4;
     public static final int ROUTE = 5;
+    public static final int CHECK = 6;
 
     private final int kind;
     private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -98,6 +99,16 @@ public class Glyph extends View {
                 p.setStyle(Paint.Style.FILL);
                 c.drawCircle(84, 16, 8, p);
                 p.setStyle(Paint.Style.STROKE);
+                break;
+            case CHECK:
+                // Drawn rather than written: a tick typed as a character comes
+                // out as an empty box on head units with a thin system font,
+                // which is how the language buttons once rendered.
+                p.setStrokeWidth(10f);
+                path.moveTo(16, 52);
+                path.lineTo(40, 76);
+                path.lineTo(84, 24);
+                c.drawPath(path, p);
                 break;
             case APPS:
                 p.setStyle(Paint.Style.FILL);

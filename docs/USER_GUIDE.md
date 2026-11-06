@@ -10,7 +10,7 @@ tap away and always comes back to that black screen.
 
 ![The home screen as it looks while driving](previews/home.png)
 
-This guide covers version 2.4. Every picture in it is a real screenshot of that
+This guide covers version 2.5. Every picture in it is a real screenshot of that
 build on a 1280×720 head unit screen, taken automatically when the guide is
 produced, so nothing here is a mock-up.
 
@@ -66,6 +66,11 @@ The temperature is the outside temperature at the current position, refreshed
 every three minutes from the Open-Meteo service. Tapping it opens the full
 forecast.
 
+Beside it is a line drawing of the sky: sun, cloud, rain, snow, fog, a lightning
+bolt — and a crescent moon when the reading was taken after dark.
+
+![A clear night](previews/home_night_sky.png)
+
 When the weather needs attention, a warning triangle appears next to the
 temperature and a line of warnings appears underneath, in a muted yellow that is
 visible at night without dazzling.
@@ -97,9 +102,9 @@ On the weather screen, the app list, the settings panel and the trip history, a
 **swipe to the right** anywhere on the screen does the same thing. The Back arrow
 sits in a corner, and a corner is the hardest place to hit while the car is
 moving; a swipe needs no aim. Only that one direction goes back, so scrolling
-sideways inside a panel still scrolls. The trip screen itself has no such gesture:
-its strip of earlier trips scrolls sideways, and the two movements would be the
-same.
+sideways inside a panel still scrolls. It works on the trip screen too, except
+on the strip of earlier trips along the foot of it: a drag that starts on the
+strip scrolls the strip.
 
 ---
 
@@ -288,9 +293,10 @@ smaller variants shrink the clock sharply and the rest of the screen gently.
 
 ## Brightness
 
-The slider runs from 15 % to 100 % and dims **only the text and the icons**. The
-background stays pure black at every setting, which is the entire reason the app
-exists.
+Five steps — 20 %, 40 %, 60 %, 80 % and 100 % — which dim **only the text and the
+icons**. The background stays pure black at every setting, which is the entire
+reason the app exists. It was a slider until 2.5; a slider wants a steady hand on
+a surface that moves.
 
 ## Night dimming
 
@@ -301,11 +307,11 @@ screen. The switch here says which way it currently is.
 
 ## Language
 
-![Settings: language and the default home screen](previews/settings_middle.png)
+![Settings: the home point and the default home screen](previews/settings_middle.png)
 
-English, Polish, or whatever the unit itself is set to. The choice applies
-immediately, including the date under the clock and the order the app list is
-sorted in.
+The button says which language is in use and opens a list of the three: English,
+Polish, or whatever the unit itself is set to. The choice applies immediately,
+including the date under the clock and the order the app list is sorted in.
 
 ![The home screen in Polish](previews/home_polish.png)
 
@@ -347,11 +353,15 @@ unit has finished booting.
 
 ## Updates
 
-![Recording and updates](previews/settings_middle.png)
+![The updates card; the tick means a check found nothing newer](previews/settings_top.png)
 
 The app is on no store, so it looks for new releases itself: once a day, and
 whenever you press **Check for an update**. If there is a newer one, a dialog asks
 whether to install it. A version you say no to is not asked about again.
+
+A green tick beside **Installed** means a check has confirmed that this is the
+newest release. No tick simply means nothing has been checked yet — on a fresh
+install, or on a unit that has had no network since it was updated.
 
 | What | Meaning |
 | --- | --- |
@@ -505,7 +515,7 @@ trips are kept.
 | The recording notification is missing | Grant notification permission; Android hides it otherwise |
 | Trips are not reaching Google Drive | Settings → Backup: the line there says why. Recording carries on regardless |
 | The old CSV files are still on the unit | They are kept on purpose; Settings → Storage removes them |
-| The screen is too bright at night | Tap the clock, or lower the brightness slider |
+| The screen is too bright at night | Tap the clock, or pick a lower brightness |
 | Text is too small or too large | Settings → Clock size |
 | Spotify opens the Play Store | Spotify is not installed on the unit |
 

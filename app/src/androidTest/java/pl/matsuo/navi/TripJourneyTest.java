@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import android.graphics.Rect;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.LargeTest;
 import androidx.test.uiautomator.By;
@@ -289,6 +290,35 @@ public class TripJourneyTest extends LauncherTest {
         tapText(R.string.hist_title);
         assertVisible(R.string.hist_date);
         tapText(R.string.nav_back);
+        assertVisible(R.string.stats_title);
+    }
+
+    @Test
+    public void swipingRightOnTheTripScreenGoesBackToTheBlackScreen() throws Exception {
+        // The one panel the swipe used to skip, because the strip of past drives
+        // along its foot scrolls sideways. The strip is four chips wide and the
+        // rest of the screen is route and figures, so the gesture belongs to the
+        // screen and the strip keeps only what begins inside it.
+        installFiveFinishedDrives();
+        open("trip");
+        assertVisible(R.string.stats_title);
+
+        swipeRightSlowly();
+        assertVisible(R.string.tile_nav);
+    }
+
+    @Test
+    public void draggingTheStripOfPastDrivesDoesNotLeaveTheTripScreen() throws Exception {
+        // The other half of the same rule, and the one that is easy to break
+        // while fixing the first: a sideways drag that starts on the strip is
+        // the strip scrolling, not the screen being left.
+        installFiveFinishedDrives();
+        open("trip");
+        UiObject2 strip = waitFor(By.text(str(R.string.stats_current)));
+        Rect at = strip.getVisibleBounds();
+        int y = at.centerY();
+        device.swipe(at.left + at.width() / 4, y, device.getDisplayWidth() - 20, y, 60);
+        device.waitForIdle();
         assertVisible(R.string.stats_title);
     }
 }

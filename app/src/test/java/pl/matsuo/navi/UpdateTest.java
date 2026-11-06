@@ -167,6 +167,32 @@ public class UpdateTest {
         assertFalse(r.installable());
     }
 
+    // ───────────────────── the tick beside the installed version ─────────────────────
+
+    @Test
+    public void aVersionIsOnlyCalledCurrentAfterACheckSaidSo() {
+        assertTrue("checked, and nothing newer", Updater.upToDate("2.5", "2.5", ""));
+        assertFalse("never checked at all", Updater.upToDate("2.5", "", ""));
+    }
+
+    @Test
+    public void aNewerReleaseWaitingToBeInstalledIsNotCurrent() {
+        assertFalse(Updater.upToDate("2.5", "2.5", "2.6"));
+    }
+
+    @Test
+    public void theConfirmationDoesNotCarryOverToTheNextBuild() {
+        // 2.5 was confirmed current; then 2.6 was installed. Until something
+        // asks GitHub again, nothing is known about 2.6 - and a tick that
+        // survived an upgrade would be a claim made about the wrong version.
+        assertFalse(Updater.upToDate("2.6", "2.5", ""));
+    }
+
+    @Test
+    public void anUnknownInstalledVersionIsNeverCurrent() {
+        assertFalse("two blanks are not a match", Updater.upToDate("", "", ""));
+    }
+
     @Test
     public void theUrlPointsAtTheRepositoryReleases() {
         assertEquals(

@@ -21,7 +21,7 @@
     <string name="look_language">Język</string>
     <string name="lang_system">Systemowy</string>
     <string name="home_default">Ustaw jako domyślny ekran główny</string>
-    <string name="home_picker">Otwórz systemowy wybór ekranu głównego…</string>
+    <string name="home_picker">Otwórz systemowy wybór ekranu głównego</string>
     <string name="msg_already_default">To już jest domyślny ekran główny</string>
     <string name="look_hint">Skrót: przytrzymaj zegar na ekranie głównym, żeby tu wrócić.</string>
 
@@ -84,7 +84,7 @@
     <string name="home_section">Punkt domu</string>
     <string name="home_role_section">Domyślny ekran główny</string>
     <string name="home_set_here">Ustaw tutaj dom</string>
-    <string name="home_set_address">Wpisz adres…</string>
+    <string name="home_set_address">Wpisz adres</string>
     <string name="home_saved">Zapisano punkt domu</string>
     <string name="home_not_found">Nie znaleziono adresu</string>
     <string name="home_no_fix">Brak pozycji GPS</string>
@@ -112,7 +112,7 @@
     <string name="update_check_failed">Nie udało się sprawdzić: %1$s</string>
     <string name="update_no_apk">To wydanie nie zawiera pliku do instalacji</string>
     <string name="update_cannot_install">To radio nie pozwala launcherowi instalować pakietów. Plik jest w %1$s - zainstaluj go menedżerem plików.</string>
-    <string name="update_allow_installs">Zezwól na instalowanie…</string>
+    <string name="update_allow_installs">Zezwól na instalowanie</string>
     <string name="update_auto">Sprawdzaj codziennie:  %1$s</string>
     <string name="update_later">Później</string>
 

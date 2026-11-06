@@ -66,13 +66,34 @@ public class ScreenshotTest extends LauncherTest {
     }
 
     @Test
+    public void shot04bHomeAfterDark() throws Exception {
+        // The only reading in tools/wx taken after sunset, and so the only one
+        // that draws the moon. Every other fixture is daytime, which is how a
+        // broken crescent shipped through 2.4 without once being looked at.
+        open("home", MainActivity.EXTRA_WEATHER, "night");
+        screenshot("home_night_sky");
+    }
+
+    @Test
     public void shot05HomeInPolish() throws Exception {
         open("look");
-        tapAfterScroll(R.string.lang_pl);
+        chooseLanguage(R.string.lang_system, R.string.lang_pl);
         open("home", MainActivity.EXTRA_WEATHER, "ice");
         screenshot("home_polish");
         open("look");
-        tapAfterScroll(R.string.lang_en);
+        chooseLanguage(R.string.lang_pl, R.string.lang_en);
+    }
+
+    /**
+     * Switches the language through the list behind the language button.
+     *
+     * <p>The button carries the language in use, so opening the list means tapping whatever it says
+     * now - which is why the current one has to be named as well as the wanted one.
+     */
+    private void chooseLanguage(int currentLabel, int wanted) throws Exception {
+        tapAfterScroll(currentLabel);
+        waitFor(By.text(str(wanted))).click();
+        device.waitForIdle();
     }
 
     // ───────────────────────────── the other panels ─────────────────────────────

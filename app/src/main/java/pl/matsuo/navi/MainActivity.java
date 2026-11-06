@@ -12,7 +12,6 @@ import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
-import android.content.res.ColorStateList;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -52,7 +51,6 @@ import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
-import android.widget.SeekBar;
 import android.widget.TextClock;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -80,7 +78,7 @@ import org.json.JSONObject;
  * A minimal, always-black home screen for an aftermarket car head unit.
  *
  * <p>Every view is built in code, which keeps the APK tiny and dependency-free. The window behind
- * the content is always pure black; the brightness slider only fades text and icons on top of it.
+ * the content is always pure black; the brightness setting only fades text and icons on top of it.
  *
  * <p>One activity holds all five screens, each built on demand and added to {@code content}: the
  * home screen, the weather screen, the trip screen, the app list and the settings panel. Back and
@@ -109,6 +107,7 @@ public class MainActivity extends Activity {
     static final int TEXT_DIM = 0xFF6E6E6E;
     static final int GLYPH = 0xFF9A9A9A;
     static final int WARN = 0xFFD4A600; // muted yellow, used for warnings
+    static final int OK = 0xFF4E9A4E; // muted green, used for "nothing to do here"
 
     static final long REFRESH_MS = 3 * 60 * 1000L;
 
@@ -142,6 +141,27 @@ public class MainActivity extends Activity {
     static final String[] SIZE_NAMES = {"100%", "80%", "67%", "50%"};
     static final float[] CLOCK_SCALE = {1f, 0.8f, 2f / 3f, 0.5f};
     static final float[] OTHER_SCALE = {1f, 0.9f, 0.8f, 0.7f};
+
+    /** The brightness steps offered, as percentages. */
+    static final int[] BRIGHTNESS = {20, 40, 60, 80, 100};
+
+    /**
+     * The offered step nearest to what is stored.
+     *
+     * <p>Brightness was a slider until 2.5 and could hold any value from 15 to 100, so an upgraded
+     * install arrives with something that is not on the list - and a row where nothing is picked
+     * out would say the screen has no brightness at all.
+     */
+    static int nearestBrightness(int stored) {
+        int best = BRIGHTNESS[0];
+        for (int level : BRIGHTNESS) {
+            if (Math.abs(level - stored) < Math.abs(best - stored)) {
+                best = level;
+            }
+        }
+        return best;
+    }
+
     private float cs = 1f;
     private float os = 1f;
 
@@ -303,8 +323,12 @@ public class MainActivity extends Activity {
      * grid - and a listener on the parent would never see the gesture. This sees every event first
      * and still hands it on, so nothing a panel does is disturbed.
      *
-     * <p>Not on the trip screen: its history runs along a strip that scrolls sideways, and the two
-     * gestures would be the same movement.
+     * <p>It used to be off on the trip screen, because the strip of past drives along the foot of
+     * that screen scrolls sideways and the two gestures are the same movement. That cost the whole
+     * screen its way back for the sake of one row: the strip holds four chips and almost never has
+     * anything to scroll. So the strip keeps the sideways drags that begin inside it - that is what
+     * {@code draggedSideways} is for - and everywhere else on the screen the swipe works as it does
+     * on every other panel.
      *
      * <p>Decided on release by how far the finger went, not by how fast. It used to ask Android's
      * gesture detector for a fling, which is a question about speed: an unhurried swipe - the kind
@@ -314,7 +338,11 @@ public class MainActivity extends Activity {
      */
     @Override
     public boolean dispatchTouchEvent(MotionEvent e) {
-        if (appsView == null && weatherView == null && lookView == null && historyView == null) {
+        if (appsView == null
+                && weatherView == null
+                && lookView == null
+                && historyView == null
+                && statsView == null) {
             return super.dispatchTouchEvent(e);
         }
         switch (e.getActionMasked()) {
@@ -629,12 +657,17 @@ public class MainActivity extends Activity {
 
     /** Dims only text and icons; the background stays pure black (#000). */
     private void applyNightDim() {
-        float level = prefs.getInt("bright", 100) / 100f;
+        // Through the same snapping the panel highlights by, so that an install
+        // upgraded from the old slider is as bright as the picked-out step says
+        // it is rather than five percent off it.
+        float level = nearestBrightness(prefs.getInt("bright", 100)) / 100f;
         boolean dim = prefs.getBoolean("dim", false);
         content.setAlpha(Math.max(0.12f, level * (dim ? 0.45f : 1f)));
     }
 
     private void showHome() {
+        // Whatever claimed sideways drags belonged to a panel that is going away.
+        draggedSideways = null;
         if (weatherView != null) {
             content.removeView(weatherView);
             weatherView = null;
@@ -646,7 +679,6 @@ public class MainActivity extends Activity {
         if (lookView != null) {
             content.removeView(lookView);
             lookView = null;
-            draggedSideways = null;
         }
         if (statsView != null) {
             content.removeView(statsView);
@@ -961,6 +993,8 @@ public class MainActivity extends Activity {
         allLp.setMargins(px(0.02f), 0, 0, 0);
         stripRow.addView(all, allLp);
         box.addView(stripRow);
+        // The one thing on this screen that owns a sideways drag for itself.
+        draggedSideways = stripRow;
 
         statsView = box;
         content.addView(statsView);
@@ -989,6 +1023,7 @@ public class MainActivity extends Activity {
             content.removeView(statsView);
             statsView = null;
             ui.removeCallbacks(statsTicker);
+            draggedSideways = null; // the strip went with it
         }
         List<TripDb.Row> rows = TripDb.of(this).recent(HISTORY_LIMIT);
 
@@ -1454,40 +1489,33 @@ public class MainActivity extends Activity {
         settingGap(card);
         card.addView(settingLabel(getString(R.string.look_brightness)));
         card.addView(settingNote(getString(R.string.look_brightness_note)));
+        // Five steps rather than a slider. A slider wants a steady hand on a
+        // surface that moves, and it was the one control on the panel whose own
+        // gesture collided with the swipe back; a row of buttons is the same
+        // shape as the layout sizes above it and can be hit without looking.
         LinearLayout brRow = new LinearLayout(this);
         brRow.setOrientation(LinearLayout.HORIZONTAL);
-        brRow.setGravity(Gravity.CENTER_VERTICAL);
-        final TextView brVal = settingValue(prefs.getInt("bright", 100) + "%");
-        SeekBar sb = new SeekBar(this);
-        // The one child of a panel whose own gesture is a sideways drag, so the
-        // swipe back has to leave it alone: dragging the slider to the right is
-        // how the screen is made brighter, not how the screen is left.
-        draggedSideways = sb;
-        sb.setMax(85); // maps to 15..100 percent
-        sb.setProgress(prefs.getInt("bright", 100) - 15);
-        ColorStateList grey = ColorStateList.valueOf(0xFF8A8A8A);
-        sb.setProgressTintList(grey);
-        sb.setThumbTintList(grey);
-        sb.setProgressBackgroundTintList(ColorStateList.valueOf(0xFF2A2A2A));
-        sb.setMinimumHeight(px(0.1f));
-        sb.setOnSeekBarChangeListener(
-                new SeekBar.OnSeekBarChangeListener() {
-                    @Override
-                    public void onProgressChanged(SeekBar s, int v, boolean user) {
-                        int val = v + 15;
-                        prefs.edit().putInt("bright", val).apply();
-                        brVal.setText(val + "%");
+        int chosen = nearestBrightness(prefs.getInt("bright", 100));
+        for (int i = 0; i < BRIGHTNESS.length; i++) {
+            final int level = BRIGHTNESS[i];
+            TextView t = text(level + "%", 0.045f, level == chosen ? TEXT : TEXT_DIM);
+            t.setGravity(Gravity.CENTER);
+            t.setPadding(0, px(0.025f), 0, px(0.025f));
+            GradientDrawable bgd = tileBg();
+            if (level == chosen) {
+                bgd.setStroke(Math.max(2, px(0.006f)), 0xFF7A7A7A);
+            }
+            t.setBackground(bgd);
+            t.setOnClickListener(
+                    v -> {
+                        prefs.edit().putInt("bright", level).apply();
                         applyNightDim();
-                    }
-
-                    @Override
-                    public void onStartTrackingTouch(SeekBar s) {}
-
-                    @Override
-                    public void onStopTrackingTouch(SeekBar s) {}
-                });
-        brRow.addView(sb, new LinearLayout.LayoutParams(0, px(0.12f), 1f));
-        brRow.addView(brVal, new LinearLayout.LayoutParams(px(0.16f), -2));
+                        showLook(); // redraw so the selection moves
+                    });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -2, 1f);
+            lp.setMargins(i == 0 ? 0 : px(0.015f), px(0.012f), 0, 0);
+            brRow.addView(t, lp);
+        }
         card.addView(brRow);
 
         settingGap(card);
@@ -1514,13 +1542,10 @@ public class MainActivity extends Activity {
 
         settingGap(card);
         card.addView(settingLabel(getString(R.string.look_language)));
-        LinearLayout langs = new LinearLayout(this);
-        langs.setOrientation(LinearLayout.HORIZONTAL);
-        String curLang = prefs.getString("lang", "");
-        langs.addView(langButton("", R.string.lang_system, curLang));
-        langs.addView(langButton("en", R.string.lang_en, curLang));
-        langs.addView(langButton("pl", R.string.lang_pl, curLang));
-        card.addView(langs);
+        // One button that opens a list, not three side by side. Three never fit
+        // the width of a column: the last of them was squeezed until "Polski"
+        // came out one letter per line, and a fourth language would be worse.
+        card.addView(flatButton(languageName(prefs.getString("lang", "")), this::askLanguage));
     }
 
     /** Where "to home" is measured from. The heading names the setting, so the card shows it. */
@@ -1828,11 +1853,24 @@ public class MainActivity extends Activity {
      * <p>The app is on no store, so without this the owner finds out about a release by accident.
      */
     private void addUpdateSection(LinearLayout box) {
-        box.addView(
+        LinearLayout installed = new LinearLayout(this);
+        installed.setOrientation(LinearLayout.HORIZONTAL);
+        installed.setGravity(Gravity.CENTER_VERTICAL);
+        installed.addView(
                 text(
                         getString(R.string.update_installed, Updater.installedVersion(this)),
                         0.035f,
                         TEXT_DIM));
+        if (Updater.upToDate(this, prefs)) {
+            // A tick beside the version, where the yellow "a newer one exists"
+            // line would otherwise be. The two never show together.
+            Glyph tick = new Glyph(this, Glyph.CHECK, OK);
+            tick.setContentDescription(getString(R.string.update_up_to_date));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(px(0.045f), px(0.045f));
+            lp.setMargins(px(0.02f), 0, 0, 0);
+            installed.addView(tick, lp);
+        }
+        box.addView(installed);
 
         String found = prefs.getString(Updater.PREF_FOUND, "");
         if (!found.isEmpty()) {
@@ -2230,29 +2268,43 @@ public class MainActivity extends Activity {
         return t;
     }
 
-    /** One language option; picking it restarts the activity in that language. */
-    private TextView langButton(String lang, int labelRes, String current) {
-        boolean selected = lang.equals(current);
-        TextView t = new TextView(this);
-        t.setText(labelRes);
-        t.setGravity(Gravity.CENTER);
-        t.setTextColor(selected ? TEXT : TEXT_DIM);
-        t.setTextSize(TypedValue.COMPLEX_UNIT_PX, H * 0.05f);
-        t.setPadding(px(0.04f), px(0.025f), px(0.04f), px(0.025f));
-        GradientDrawable bgd = tileBg();
-        if (selected) {
-            bgd.setStroke(Math.max(2, px(0.006f)), 0xFF7A7A7A);
+    /** The languages on offer; the empty code means whatever the head unit is set to. */
+    private static final String[] LANGUAGES = {"", "en", "pl"};
+
+    /** What a language code is called, in its own language where it has one. */
+    private String languageName(String lang) {
+        if ("en".equals(lang)) {
+            return getString(R.string.lang_en);
         }
-        t.setBackground(bgd);
-        t.setOnClickListener(
-                v -> {
-                    prefs.edit().putString("lang", lang).apply();
-                    recreate(); // attachBaseContext applies the new locale
-                });
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
-        lp.setMargins(px(0.015f), px(0.02f), px(0.015f), px(0.03f));
-        t.setLayoutParams(lp);
-        return t;
+        if ("pl".equals(lang)) {
+            return getString(R.string.lang_pl);
+        }
+        return getString(R.string.lang_system);
+    }
+
+    /** The list behind the language button; picking one restarts the activity in it. */
+    private void askLanguage() {
+        String current = prefs.getString("lang", "");
+        String[] names = new String[LANGUAGES.length];
+        int checked = -1;
+        for (int i = 0; i < LANGUAGES.length; i++) {
+            names[i] = languageName(LANGUAGES[i]);
+            if (LANGUAGES[i].equals(current)) {
+                checked = i;
+            }
+        }
+        new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog)
+                .setTitle(R.string.look_language)
+                .setSingleChoiceItems(
+                        names,
+                        checked,
+                        (d, which) -> {
+                            d.dismiss();
+                            prefs.edit().putString("lang", LANGUAGES[which]).apply();
+                            recreate(); // attachBaseContext applies the new locale
+                        })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
     }
 
     private LinearLayout.LayoutParams marginTop(int m) {

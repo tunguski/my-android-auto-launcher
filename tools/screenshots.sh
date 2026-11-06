@@ -49,22 +49,35 @@ echo "== taking the screenshots"
 "$ADB" shell "am instrument -w -r -e class pl.matsuo.navi.ScreenshotTest $RUNNER" \
     | grep -E "INSTRUMENTATION_STATUS: (test|stream)=|OK \(|FAILURES" || true
 
-echo "== copying into $OUT"
-mkdir -p "$OUT"
-rm -f "$OUT"/*.png
+# Collected beside the stored previews and moved over them only once the whole
+# set has arrived. Emptying the folder first and filling it as the files come in
+# meant a run that failed - or an emulator that handed back blank frames - left
+# the user guide with no pictures, or with black ones, and the only way back was
+# the repository.
+STAGE=$(mktemp -d)
+trap 'rm -rf "$STAGE"' EXIT
+
+echo "== collecting"
 COUNT=0
 for name in $("$ADB" shell "run-as $PKG ls files/shots" | tr -d '\r'); do
     case "$name" in
         *.png) ;;
         *) continue ;;
     esac
-    "$ADB" exec-out "run-as $PKG cat files/shots/$name" > "$OUT/$name"
+    "$ADB" exec-out "run-as $PKG cat files/shots/$name" > "$STAGE/$name"
     COUNT=$((COUNT + 1))
-    echo "   $OUT/$name"
 done
 
 if [ "$COUNT" -eq 0 ]; then
     echo "No screenshots were produced - see the instrumentation output above." >&2
     exit 1
 fi
+
+echo "== copying into $OUT"
+mkdir -p "$OUT"
+rm -f "$OUT"/*.png
+for f in "$STAGE"/*.png; do
+    cp "$f" "$OUT/"
+    echo "   $OUT/$(basename "$f")"
+done
 echo "== $COUNT previews refreshed"

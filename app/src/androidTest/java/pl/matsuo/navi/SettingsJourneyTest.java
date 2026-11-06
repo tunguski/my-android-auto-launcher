@@ -2,7 +2,6 @@ package pl.matsuo.navi;
 
 import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentation;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
@@ -13,7 +12,7 @@ import androidx.test.filters.LargeTest;
 import androidx.test.uiautomator.By;
 import androidx.test.uiautomator.UiObject2;
 import androidx.test.uiautomator.Until;
-import java.util.regex.Pattern;
+import java.util.List;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -128,49 +127,44 @@ public class SettingsJourneyTest extends LauncherTest {
     }
 
     @Test
-    public void theBrightnessSliderCanBeMoved() throws Exception {
+    public void everyBrightnessStepIsOffered() throws Exception {
         open("look");
-        Rect bar = waitFor(By.clazz("android.widget.SeekBar")).getVisibleBounds();
-        String before = percentBeside(bar);
-        // Dragged by hand from the thumb, which sits at the right-hand end while
-        // the brightness is full. UiAutomator's own scroll gesture keeps to the
-        // middle of the view and leaves a slider at either extreme untouched, so
-        // the old form of this test moved nothing and could not have noticed.
-        int y = bar.centerY();
-        device.swipe(bar.right - bar.width() / 20, y, bar.centerX(), y, 40);
-        device.waitForIdle();
-        // Dimming must never black the screen out completely: the labels stay.
-        assertVisible(R.string.look_brightness);
-        // And the slider still works. Dragging it is a sideways drag, which is
-        // also how a panel is left, so the swipe back has to leave this one
-        // child alone - and the two ways of getting that wrong look opposite:
-        // the panel closes under the finger, or the thumb no longer moves.
-        assertNotEquals("the brightness slider did not move", before, percentBeside(bar));
+        for (int level : MainActivity.BRIGHTNESS) {
+            assertNotNull("no " + level + "% brightness button", scrollToText(level + "%"));
+        }
     }
 
-    /**
-     * The percentage shown next to the slider.
-     *
-     * <p>Picked by where it is, because it is not the only percentage on the screen: the four
-     * layout sizes are offered as 100%, 80%, 67% and 50%, and they come first. Taking the first one
-     * instead - which this test did - meant reading a button that never changes, so the assertion
-     * held whatever the slider did.
-     */
-    private String percentBeside(Rect bar) {
-        for (UiObject2 o : device.findObjects(By.text(Pattern.compile("\\d+%")))) {
-            if (Rect.intersects(o.getVisibleBounds(), bar)
-                    || (o.getVisibleBounds().centerY() > bar.top
-                            && o.getVisibleBounds().centerY() < bar.bottom)) {
-                return o.getText();
+    @Test
+    public void choosingABrightnessStoresItAndLeavesTheScreenReadable() throws Exception {
+        open("look");
+        // 40%, because it is one of the three percentages that belong to the
+        // brightness row alone: the four layout sizes above it are 100%, 80%,
+        // 67% and 50%, so asking for either of those by text is ambiguous.
+        scrollToText("40%").click();
+        device.waitForIdle();
+        assertEquals("the brightness was not stored", 40, storedBrightness());
+        // Dimming must never black the screen out completely: the labels stay.
+        assertVisible(R.string.look_brightness);
+    }
+
+    /** The stored brightness, once the tap has been handled on the main thread. */
+    private int storedBrightness() throws Exception {
+        for (long waited = 0; waited < TIMEOUT_MS; waited += 100) {
+            int stored = context.getSharedPreferences(MainActivity.PREFS, 0).getInt("bright", -1);
+            if (stored == 40) {
+                return stored;
             }
+            Thread.sleep(100);
         }
-        throw new AssertionError("no percentage beside the slider at " + bar);
+        return context.getSharedPreferences(MainActivity.PREFS, 0).getInt("bright", -1);
     }
 
     @Test
     public void theLanguageCanBeSwitchedToPolishAndBack() throws Exception {
         open("look");
-        tapAfterScroll(R.string.lang_pl);
+        // The button carries the current language, so it says "System" here.
+        tapAfterScroll(R.string.lang_system);
+        waitFor(By.text(str(R.string.lang_pl))).click();
         device.waitForIdle();
         assertNotNull(
                 "the settings panel is not in Polish", scrollToText(strPl(R.string.look_language)));
@@ -180,7 +174,8 @@ public class SettingsJourneyTest extends LauncherTest {
                 "the home screen is not in Polish", waitFor(By.text(strPl(R.string.tile_nav))));
 
         open("look");
-        tapAfterScroll(R.string.lang_en); // the button says "English" either way
+        tapAfterScroll(R.string.lang_pl); // and now the button says "Polski"
+        waitFor(By.text(str(R.string.lang_en))).click(); // "English" in either language
         device.waitForIdle();
         scrollTo(R.string.look_language);
         device.pressBack();
@@ -188,17 +183,25 @@ public class SettingsJourneyTest extends LauncherTest {
     }
 
     @Test
-    public void theLanguageButtonsCarryTheirOwnNames() throws Exception {
+    public void theLanguageListCarriesEachNameInItsOwnLanguage() throws Exception {
         // They were rendering as empty boxes once, which is why this is asserted.
+        // The list behind the button is also what replaced three buttons in a
+        // row: the third of them was squeezed until "Polski" ran down the screen
+        // one letter per line, which is a bug the bounds below would now catch.
         open("look");
-        scrollTo(R.string.lang_system);
-        scrollTo(R.string.lang_en);
-        scrollTo(R.string.lang_pl);
+        tapAfterScroll(R.string.lang_system);
         for (int res : new int[] {R.string.lang_system, R.string.lang_en, R.string.lang_pl}) {
-            UiObject2 b = scrollTo(res);
-            assertTrue(
-                    str(res) + " renders as an empty box",
-                    b.getVisibleBounds().width() > 20 && b.getVisibleBounds().height() > 10);
+            // Every match, not the first: the button that opened the list
+            // carries a language name too, and asking for one would let the
+            // button stand in for the row that is meant to be checked.
+            assertNotNull(waitFor(By.text(str(res))));
+            List<UiObject2> all = device.findObjects(By.text(str(res)));
+            for (UiObject2 b : all) {
+                Rect at = b.getVisibleBounds();
+                assertTrue(
+                        str(res) + " renders as " + at + ", taller than it is wide",
+                        at.width() > at.height() && at.height() > 10);
+            }
         }
     }
 

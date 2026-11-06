@@ -4,7 +4,7 @@ A minimal, always-black home-screen launcher for aftermarket Android car head un
 
 The stock launcher on these units is bright, busy and full of animated widgets. This one
 shows a clock, the current outside temperature and five large tiles — nothing else. The
-background is pure black at all times, and the brightness slider fades only the text and
+background is pure black at all times, and the brightness setting fades only the text and
 icons, so the screen never glows white at night.
 
 Built for a Chinese head unit in a Toyota Auris (Android 15, 1280×720 landscape), but it

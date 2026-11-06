@@ -34,6 +34,9 @@ final class Updater {
     static final String PREF_AUTO = "update_auto";
     static final String PREF_LAST_ERROR = "update_error";
 
+    /** The installed version as it was at the last check that found nothing newer. */
+    static final String PREF_CONFIRMED = "update_confirmed";
+
     /** How often the automatic check asks GitHub. Their limit is sixty an hour per address. */
     static final long CHECK_EVERY_MS = 24 * 60 * 60 * 1000L;
 
@@ -78,11 +81,31 @@ final class Updater {
                 .putString(PREF_LAST_ERROR, "")
                 .apply();
         if (release == null || !Update.isNewer(installedVersion(c), release.version)) {
-            prefs.edit().remove(PREF_FOUND).apply();
+            prefs.edit().remove(PREF_FOUND).putString(PREF_CONFIRMED, installedVersion(c)).apply();
             return null;
         }
-        prefs.edit().putString(PREF_FOUND, release.version).apply();
+        prefs.edit().putString(PREF_FOUND, release.version).remove(PREF_CONFIRMED).apply();
         return release;
+    }
+
+    /**
+     * Whether a check has confirmed that what is installed is the newest there is.
+     *
+     * <p>Not the same question as "is {@code PREF_FOUND} empty": that is also true before anything
+     * has ever been checked, and a tick against a version nobody has asked GitHub about would be a
+     * claim the app has no grounds for. It is also why the confirmation is stored as the version it
+     * was given for - once a newer build is installed, the old confirmation no longer says anything
+     * about it.
+     */
+    static boolean upToDate(Context c, SharedPreferences prefs) {
+        return upToDate(
+                installedVersion(c),
+                prefs.getString(PREF_CONFIRMED, ""),
+                prefs.getString(PREF_FOUND, ""));
+    }
+
+    static boolean upToDate(String installed, String confirmed, String found) {
+        return found.isEmpty() && !installed.isEmpty() && installed.equals(confirmed);
     }
 
     /** Remembers that a version has already been offered, so it is not asked about twice. */

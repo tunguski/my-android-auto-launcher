@@ -9,8 +9,8 @@ plugins {
     jacoco
 }
 
-val appVersionName = "2.4"
-val appVersionCode = 15
+val appVersionName = "2.5"
+val appVersionCode = 16
 
 // Output file names carry the version, e.g. navi-1.8-debug.apk.
 base {

@@ -90,14 +90,27 @@ public class WxIcon extends View {
         }
     }
 
+    /**
+     * A crescent, cut out of one circle by another of the same size.
+     *
+     * <p>It used to be a near-complete arc with a second arc of a different radius bolted onto it
+     * at an angle where the two ends did not meet, and what came out was neither a moon nor a
+     * circle: a lopsided ring with a chord across it. That is the shape the clear-night forecast
+     * has been showing next to the temperature.
+     *
+     * <p>Both ends meet here because the second circle is pushed right by exactly the width of the
+     * horns, {@code 2 * r * cos(horn)}, which puts it through both of them.
+     */
     private void moon(Canvas c, float x, float y, float r) {
+        float horn = 55; // degrees above and below the waist where the crescent ends
+        float a = (float) Math.cos(Math.toRadians(horn)) * r;
         path.reset();
-        path.addArc(new RectF(x - r, y - r, x + r, y + r), -60, 280);
-        path.arcTo(
-                new RectF(x - r * 0.45f, y - r * 1.05f, x + r * 1.15f, y + r * 0.55f),
-                125,
-                -235,
-                false);
+        // The lit edge: the long way round, through the left.
+        path.addArc(new RectF(x - r, y - r, x + r, y + r), -horn, -(360 - 2 * horn));
+        // And back along the shadow.
+        float cx = x + 2 * a;
+        path.arcTo(new RectF(cx - r, y - r, cx + r, y + r), 180 - horn, 2 * horn, false);
+        path.close();
         c.drawPath(path, p);
     }
 

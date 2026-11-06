@@ -34,7 +34,7 @@
     <string name="lang_en">English</string>
     <string name="lang_pl">Polski</string>
     <string name="home_default">Set as default home screen</string>
-    <string name="home_picker">Open the system home-screen picker…</string>
+    <string name="home_picker">Open the system home-screen picker</string>
     <string name="msg_already_default">Already the default home screen</string>
     <string name="look_hint">Shortcut: hold the clock on the home screen to get back here.</string>
 
@@ -104,7 +104,7 @@
     <string name="home_section">Home point</string>
     <string name="home_role_section">Default home screen</string>
     <string name="home_set_here">Set home here</string>
-    <string name="home_set_address">Enter an address…</string>
+    <string name="home_set_address">Enter an address</string>
     <string name="home_saved">Home point saved</string>
     <string name="home_not_found">Address not found</string>
     <string name="home_no_fix">No GPS position yet</string>
@@ -136,7 +136,7 @@
     <string name="update_check_failed">Could not check: %1$s</string>
     <string name="update_no_apk">That release carries no installable file</string>
     <string name="update_cannot_install">This unit will not let the launcher install packages. The file is in %1$s - install it with a file manager.</string>
-    <string name="update_allow_installs">Allow installing…</string>
+    <string name="update_allow_installs">Allow installing</string>
     <string name="update_auto">Check daily:  %1$s</string>
     <string name="update_later">Later</string>
 

@@ -13,6 +13,7 @@ import android.net.Uri;
 import android.provider.OpenableColumns;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.LargeTest;
+import androidx.test.uiautomator.By;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
@@ -83,6 +84,44 @@ public class UpdateJourneyTest extends LauncherTest {
         prefs.edit().putString(Updater.PREF_FOUND, "9.9").apply();
         open("look");
         scrollToText(str(R.string.update_available, "9.9"));
+    }
+
+    @Test
+    public void aCheckedAndCurrentVersionIsTickedRatherThanLeftBlank() throws Exception {
+        prefs.edit().putString(Updater.PREF_CONFIRMED, Updater.installedVersion(context)).apply();
+        open("look");
+        scrollToText(str(R.string.update_installed, Updater.installedVersion(context)));
+        // The tick is drawn rather than written - a tick typed as a character
+        // comes out as an empty box on a thin system font - so what it says it
+        // is for is the only thing a test can read.
+        assertNotNull("no tick beside the installed version", waitFor(By.desc(tick())));
+    }
+
+    /** What the green tick beside the installed version calls itself. */
+    private String tick() {
+        return str(R.string.update_up_to_date);
+    }
+
+    @Test
+    public void nothingIsTickedBeforeAnythingHasBeenChecked() throws Exception {
+        // A fresh install has asked GitHub nothing. A tick here would be a claim
+        // about a release the app has never seen.
+        open("look");
+        scrollToText(str(R.string.update_installed, Updater.installedVersion(context)));
+        assertNull("a tick on a version nobody has checked", device.findObject(By.desc(tick())));
+    }
+
+    @Test
+    public void aFoundUpdateIsNotAlsoTicked() throws Exception {
+        // The yellow line and the green tick are opposite answers to the same
+        // question, and showing both would leave the owner to pick one.
+        prefs.edit()
+                .putString(Updater.PREF_CONFIRMED, Updater.installedVersion(context))
+                .putString(Updater.PREF_FOUND, "9.9")
+                .apply();
+        open("look");
+        scrollToText(str(R.string.update_available, "9.9"));
+        assertNull("both the tick and a newer version", device.findObject(By.desc(tick())));
     }
 
     @Test

@@ -59,11 +59,11 @@ write() {
 {
   "place": "$place",
   "current": {
-    "time": "${DAY}T${NOW_HOUR}:00",
+    "time": "${DAY}T${HOUR:-$NOW_HOUR}:00",
     "temperature_2m": $temp,
     "apparent_temperature": $(awk "BEGIN{printf \"%.1f\", $temp - 2.5}"),
     "weather_code": $code,
-    "is_day": 1,
+    "is_day": ${IS_DAY:-1},
     "wind_speed_10m": $(awk "BEGIN{printf \"%.0f\", $gusts * 0.6}"),
     "wind_gusts_10m": $gusts
   },
@@ -97,3 +97,8 @@ write wind      "Warszawa"  12.0    3    85  20000   0.0    20
 write fog       "Warszawa"   6.0   45    15    120   0.0    10
 write snow      "Gdansk"    -2.0   75    40   3000   2.0    85
 write all       "Gdansk"    -1.0   95    90     90   3.0    95
+
+# And one after dark. It is the only fixture that draws the moon, and the moon
+# shipped broken through 2.4 - a lopsided ring with a chord across it - because
+# every other reading here is daytime and nothing ever rendered it.
+IS_DAY=0 HOUR=21 write night "Warszawa"   3.0    1    15  20000   0.0     5
