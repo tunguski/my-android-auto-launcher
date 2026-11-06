@@ -70,8 +70,39 @@ jobs:
           if-no-files-found: error
 
   instrumented:
-    name: On-device tests and previews
+    name: On-device tests (shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
+    strategy:
+      # Four emulators, a quarter of the tests each. The suite cannot be split
+      # inside one device: the tests share the recorder's static state, one
+      # database and the HOME role, so the only safe division is one device per
+      # shard. Booting an emulator costs about two and a half minutes whatever
+      # it then runs, so four shards is where the gain flattens out.
+      #
+      # Split by class, not with the runner's own numShards. That shards by
+      # method, by hash, so methods of different classes interleave in one
+      # process - and TripDbTest stops the recording service in its setup,
+      # because it drives the recorder's static fields directly. Interleaved,
+      # it pulls the service out from under the journey tests that depend on
+      # it. Measured: numShards=4 failed six tests that pass in one run.
+      #
+      # The last shard is defined by what it is not, so a new test class lands
+      # in it automatically rather than silently never running.
+      #
+      # fail-fast off on purpose: a failing shard must not cancel the others,
+      # or the run throws away the three reports that say what still works.
+      fail-fast: false
+      matrix:
+        include:
+          - shard: 0
+            filter: class=pl.matsuo.navi.HomeJourneyTest,pl.matsuo.navi.TripJourneyTest
+          - shard: 1
+            filter: class=pl.matsuo.navi.RecordingJourneyTest,pl.matsuo.navi.StartupJourneyTest
+          - shard: 2
+            filter: class=pl.matsuo.navi.BackupJourneyTest,pl.matsuo.navi.SettingsJourneyTest
+          - shard: 3
+            filter: >-
+              notClass=pl.matsuo.navi.HomeJourneyTest,pl.matsuo.navi.TripJourneyTest,pl.matsuo.navi.RecordingJourneyTest,pl.matsuo.navi.StartupJourneyTest,pl.matsuo.navi.BackupJourneyTest,pl.matsuo.navi.SettingsJourneyTest
     steps:
       - uses: actions/checkout@v4
 
@@ -97,7 +128,60 @@ jobs:
           sudo udevadm trigger --name-match=kvm
 
       # 1280x720 landscape: the resolution of the head unit this is built for.
-      - name: Run the journey tests and refresh the previews
+      - name: Run this shard of the journey tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          emulator-options: >-
+            -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+            -camera-back none -camera-front none -skin 1280x720
+          disable-animations: true
+          script: >-
+            ./gradlew --no-daemon connectedDebugAndroidTest
+            -Pandroid.testInstrumentationRunnerArguments.${{ matrix.filter }}
+
+      # One name per shard, or the four uploads would fight over one artifact.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: instrumented-test-report-${{ matrix.shard }}
+          path: app/build/reports/androidTests/connected
+          if-no-files-found: warn
+
+  # Separate from the shards, because the previews are not a quarter of
+  # anything: screenshots.sh runs ScreenshotTest itself and collects all of the
+  # pictures, so it has to see one whole device. Sharding it would have meant
+  # guessing which shard the class landed in, which the runner decides by hash.
+  previews:
+    name: Previews and user guide
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      # "packages" is pinned because the action default still asks for the
+      # obsolete "tools" package, which Google removed from the SDK repository.
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-35 build-tools;35.0.0"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # The emulator needs hardware acceleration to be usable on a runner.
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Refresh the previews and render the guide
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
@@ -108,16 +192,8 @@ jobs:
             -camera-back none -camera-front none -skin 1280x720
           disable-animations: true
           script: |
-            ./gradlew --no-daemon connectedDebugAndroidTest
             bash tools/screenshots.sh
             ./gradlew --no-daemon userGuide
-
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: instrumented-test-report
-          path: app/build/reports/androidTests/connected
-          if-no-files-found: warn
 
       # The previews and the guide produced on the emulator, as built here.
       - uses: actions/upload-artifact@v4
@@ -132,7 +208,7 @@ jobs:
   release:
     name: Signed release APK
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [check, instrumented]
+    needs: [check, instrumented, previews]
     runs-on: ubuntu-latest
     # The only job that writes anything, and only on a tag.
     permissions:
