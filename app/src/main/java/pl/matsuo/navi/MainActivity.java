@@ -33,7 +33,6 @@ import android.os.Looper;
 import android.provider.Settings;
 import android.util.DisplayMetrics;
 import android.util.TypedValue;
-import android.view.GestureDetector;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
@@ -299,22 +298,29 @@ public class MainActivity extends Activity {
      *
      * <p>Not on the trip screen: its history runs along a strip that scrolls sideways, and the two
      * gestures would be the same movement.
+     *
+     * <p>Decided on release by how far the finger went, not by how fast. It used to ask Android's
+     * gesture detector for a fling, which is a question about speed: an unhurried swipe - the kind
+     * a driver makes while watching the road - travelled the whole screen and did nothing, and the
+     * test for it failed about one run in ten for the same reason. Distance is what the driver
+     * means, and it is the same every time.
      */
     @Override
     public boolean dispatchTouchEvent(MotionEvent e) {
-        if (swipeBack == null) {
-            swipeBack = new GestureDetector(this, new SwipeBack());
-        }
         if (appsView == null && weatherView == null && lookView == null && historyView == null) {
             return super.dispatchTouchEvent(e);
         }
         switch (e.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
                 sideways = false;
+                swipeBlocked = startedOn(draggedSideways, e);
                 downX = e.getX();
                 downY = e.getY();
                 break;
             case MotionEvent.ACTION_MOVE:
+                if (swipeBlocked) {
+                    break;
+                }
                 if (!sideways && isSideways(e)) {
                     sideways = true;
                     // Tell the children this touch is over. Without it a drag
@@ -328,13 +334,24 @@ public class MainActivity extends Activity {
                     cancel.recycle();
                 }
                 break;
+            case MotionEvent.ACTION_UP:
+                if (sideways && wentBackwards(e)) {
+                    backFromPanel();
+                    return true;
+                }
+                break;
             default:
                 break;
         }
-        swipeBack.onTouchEvent(e);
         // Once it is a swipe it stays a swipe, in either direction. Only one of
         // them goes back, but neither may land as a tap.
         return sideways || super.dispatchTouchEvent(e);
+    }
+
+    /** Far enough to the right, and more sideways than up and down. */
+    private boolean wentBackwards(MotionEvent e) {
+        float dx = e.getX() - downX;
+        return dx > H * SWIPE_MIN_W && dx > 2 * Math.abs(e.getY() - downY);
     }
 
     private boolean isSideways(MotionEvent e) {
@@ -345,31 +362,24 @@ public class MainActivity extends Activity {
     /** How far sideways a finger travels before it stops being a tap. */
     private static final float SWIPE_SLOP = 0.04f;
 
-    private GestureDetector swipeBack;
     private boolean sideways;
+    private boolean swipeBlocked;
     private float downX;
     private float downY;
 
-    /** Left to right, and more sideways than up and down. */
-    private final class SwipeBack extends GestureDetector.SimpleOnGestureListener {
-        @Override
-        public boolean onDown(MotionEvent e) {
-            return true; // without this no fling is ever reported
-        }
+    /** A child of the open panel that owns sideways drags for itself, or null. */
+    private View draggedSideways;
 
-        @Override
-        public boolean onFling(MotionEvent from, MotionEvent to, float vx, float vy) {
-            if (from == null || to == null) {
-                return false;
-            }
-            float dx = to.getX() - from.getX();
-            float dy = to.getY() - from.getY();
-            if (dx > H * SWIPE_MIN_W && Math.abs(dx) > 2 * Math.abs(dy)) {
-                backFromPanel();
-                return true;
-            }
+    /** Whether a touch began inside the given view. */
+    private boolean startedOn(View v, MotionEvent e) {
+        if (v == null || v.getWindowToken() == null) {
             return false;
         }
+        int[] at = new int[2];
+        v.getLocationOnScreen(at);
+        float x = e.getRawX();
+        float y = e.getRawY();
+        return x >= at[0] && x <= at[0] + v.getWidth() && y >= at[1] && y <= at[1] + v.getHeight();
     }
 
     /** How far a swipe has to travel to count, as a fraction of the screen short side. */
@@ -629,6 +639,7 @@ public class MainActivity extends Activity {
         if (lookView != null) {
             content.removeView(lookView);
             lookView = null;
+            draggedSideways = null;
         }
         if (statsView != null) {
             content.removeView(statsView);
@@ -1436,6 +1447,10 @@ public class MainActivity extends Activity {
         brRow.setGravity(Gravity.CENTER_VERTICAL);
         final TextView brVal = settingValue(prefs.getInt("bright", 100) + "%");
         SeekBar sb = new SeekBar(this);
+        // The one child of a panel whose own gesture is a sideways drag, so the
+        // swipe back has to leave it alone: dragging the slider to the right is
+        // how the screen is made brighter, not how the screen is left.
+        draggedSideways = sb;
         sb.setMax(85); // maps to 15..100 percent
         sb.setProgress(prefs.getInt("bright", 100) - 15);
         ColorStateList grey = ColorStateList.valueOf(0xFF8A8A8A);

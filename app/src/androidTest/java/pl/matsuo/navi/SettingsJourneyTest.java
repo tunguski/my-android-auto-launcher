@@ -1,13 +1,16 @@
 package pl.matsuo.navi;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
+import android.graphics.Rect;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.LargeTest;
 import androidx.test.uiautomator.By;
 import androidx.test.uiautomator.UiObject2;
+import java.util.regex.Pattern;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -124,12 +127,41 @@ public class SettingsJourneyTest extends LauncherTest {
     @Test
     public void theBrightnessSliderCanBeMoved() throws Exception {
         open("look");
-        UiObject2 slider = waitFor(By.clazz("android.widget.SeekBar"));
-        slider.setGestureMargin(slider.getVisibleBounds().width() / 4);
-        slider.scroll(androidx.test.uiautomator.Direction.LEFT, 0.5f);
+        Rect bar = waitFor(By.clazz("android.widget.SeekBar")).getVisibleBounds();
+        String before = percentBeside(bar);
+        // Dragged by hand from the thumb, which sits at the right-hand end while
+        // the brightness is full. UiAutomator's own scroll gesture keeps to the
+        // middle of the view and leaves a slider at either extreme untouched, so
+        // the old form of this test moved nothing and could not have noticed.
+        int y = bar.centerY();
+        device.swipe(bar.right - bar.width() / 20, y, bar.centerX(), y, 40);
         device.waitForIdle();
         // Dimming must never black the screen out completely: the labels stay.
         assertVisible(R.string.look_brightness);
+        // And the slider still works. Dragging it is a sideways drag, which is
+        // also how a panel is left, so the swipe back has to leave this one
+        // child alone - and the two ways of getting that wrong look opposite:
+        // the panel closes under the finger, or the thumb no longer moves.
+        assertNotEquals("the brightness slider did not move", before, percentBeside(bar));
+    }
+
+    /**
+     * The percentage shown next to the slider.
+     *
+     * <p>Picked by where it is, because it is not the only percentage on the screen: the four
+     * layout sizes are offered as 100%, 80%, 67% and 50%, and they come first. Taking the first one
+     * instead - which this test did - meant reading a button that never changes, so the assertion
+     * held whatever the slider did.
+     */
+    private String percentBeside(Rect bar) {
+        for (UiObject2 o : device.findObjects(By.text(Pattern.compile("\\d+%")))) {
+            if (Rect.intersects(o.getVisibleBounds(), bar)
+                    || (o.getVisibleBounds().centerY() > bar.top
+                            && o.getVisibleBounds().centerY() < bar.bottom)) {
+                return o.getText();
+            }
+        }
+        throw new AssertionError("no percentage beside the slider at " + bar);
     }
 
     @Test
@@ -216,9 +248,11 @@ public class SettingsJourneyTest extends LauncherTest {
         open("look");
         assertVisible(R.string.look_title);
 
-        // The panel scrolls vertically and is full of children that claim the
-        // touch stream; the gesture has to reach the launcher regardless.
-        swipeRight();
+        // Slowly on purpose, and the harder of the two cases: the panel scrolls
+        // vertically and is full of children that claim the touch stream, and a
+        // swipe made at a driver's pace must still reach the launcher. The brisk
+        // version of the gesture is covered on the app list.
+        swipeRightSlowly();
         assertVisible(R.string.tile_nav);
     }
 }

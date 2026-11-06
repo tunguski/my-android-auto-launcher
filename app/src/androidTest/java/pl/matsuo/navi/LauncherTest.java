@@ -7,7 +7,9 @@ import static org.junit.Assert.assertTrue;
 import android.content.Context;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
+import android.graphics.Rect;
 import android.os.ParcelFileDescriptor;
+import android.os.SystemClock;
 import androidx.test.uiautomator.By;
 import androidx.test.uiautomator.BySelector;
 import androidx.test.uiautomator.Direction;
@@ -207,19 +209,14 @@ public abstract class LauncherTest {
         }
         String out = shell(cmd.toString());
         assertTrue(
-                "the launcher did not come up; in front instead: "
-                        + device.getCurrentPackageName()
-                        + "\n"
-                        + cmd
-                        + "\n"
-                        + out,
+                "the launcher did not come up" + whatWentWrong() + "\n" + cmd + "\n" + out,
                 device.wait(Until.hasObject(By.pkg(PKG)), TIMEOUT_MS));
         device.waitForIdle();
     }
 
     /** Starts the launcher on the home screen with the given size variant. */
     void openHome(int sizeVariant, String... extras) throws Exception {
-        shell(
+        String cmd =
                 "am start -W -n "
                         + ACTIVITY
                         + " --ei "
@@ -228,8 +225,16 @@ public abstract class LauncherTest {
                         + sizeVariant
                         + " --es "
                         + MainActivity.EXTRA_SCREEN
-                        + " home");
-        device.wait(Until.hasObject(By.pkg(PKG).depth(0)), TIMEOUT_MS);
+                        + " home";
+        String out = shell(cmd);
+        // Asserted, not merely waited for. It used to ignore the result, and a
+        // run where the launcher never appeared went on to report whatever the
+        // test looked for next as "not on screen" - twelve different messages
+        // for one cause - while a test that asserts something is absent passed
+        // on a blank screen.
+        assertTrue(
+                "the home screen did not come up" + whatWentWrong() + "\n" + cmd + "\n" + out,
+                device.wait(Until.hasObject(By.pkg(PKG).depth(0)), TIMEOUT_MS));
         if (extras.length > 0) {
             open("home", extras);
         }
@@ -237,15 +242,60 @@ public abstract class LauncherTest {
     }
 
     /**
-     * A quick drag from a quarter of the way across the screen to near its right edge.
+     * What is in front of the launcher, and whether anything died, for a failure message.
+     *
+     * <p>{@code getCurrentPackageName} answers {@code android} both for a system dialog and for no
+     * window at all, which are opposite problems: a crash or ANR dialog sitting on top, against the
+     * activity never drawing because its main thread is busy. This has now cost two days of
+     * guessing, twice, so the message names the focused window and quotes anything the crash buffer
+     * holds.
+     */
+    private String whatWentWrong() {
+        StringBuilder sb = new StringBuilder("; in front instead: ");
+        sb.append(device.getCurrentPackageName());
+        try {
+            for (String line : shell("dumpsys window").split("\n")) {
+                if (line.contains("mCurrentFocus") || line.contains("mFocusedApp")) {
+                    sb.append("\n").append(line.trim());
+                }
+            }
+            String crash = shell("logcat -d -b crash -t 40").trim();
+            if (!crash.isEmpty()) {
+                sb.append("\ncrash buffer:\n").append(crash);
+            }
+            String anr = shell("logcat -d -t 400 ActivityManager:E *:S").trim();
+            if (!anr.isEmpty()) {
+                sb.append("\nActivityManager errors:\n").append(anr);
+            }
+        } catch (Exception e) {
+            sb.append("\n(could not be asked why: ").append(e).append(")");
+        }
+        return sb.toString();
+    }
+
+    /**
+     * A drag from a quarter of the way across the screen to near its right edge.
      *
      * <p>Not from the very edge: that is where Android's own back gesture lives, and a test
-     * starting there would be proving the system's behaviour rather than the launcher's. Few steps,
-     * because the launcher looks for a fling and a slow drag is not one.
+     * starting there would be proving the system's behaviour rather than the launcher's.
      */
     void swipeRight() {
+        swipeRight(10);
+    }
+
+    /**
+     * The same gesture made slowly, as a driver glancing at the road makes it.
+     *
+     * <p>Worth its own helper because speed used to decide the outcome: the launcher asked for a
+     * fling, so this swipe - identical in distance and direction - did nothing.
+     */
+    void swipeRightSlowly() {
+        swipeRight(120);
+    }
+
+    private void swipeRight(int steps) {
         int y = device.getDisplayHeight() / 2;
-        device.swipe(device.getDisplayWidth() / 4, y, device.getDisplayWidth() * 9 / 10, y, 10);
+        device.swipe(device.getDisplayWidth() / 4, y, device.getDisplayWidth() * 9 / 10, y, steps);
         device.waitForIdle();
     }
 
@@ -332,6 +382,35 @@ public abstract class LauncherTest {
             if (again != null) {
                 found = again;
             }
+        }
+        return panel == null ? found : settled(text, found);
+    }
+
+    /**
+     * The same view once it has stopped moving.
+     *
+     * <p>A scrolled panel keeps gliding after the finger leaves it, and {@code waitForIdle} returns
+     * on a quiet accessibility stream rather than on a still screen - sooner than the fling ends,
+     * on a loaded machine. A tap then lands where the row was, which is the next row by the time it
+     * arrives, or the gap between two groups, where it does nothing at all. That is what failed in
+     * CI as a settings switch that refused to toggle, and the panel has had gaps between its groups
+     * since the settings screen was rebuilt, which turned a near miss from the wrong answer into no
+     * answer.
+     */
+    private UiObject2 settled(String text, UiObject2 found) {
+        Rect was = found.getVisibleBounds();
+        for (int i = 0; i < 20; i++) {
+            SystemClock.sleep(50);
+            UiObject2 again = device.findObject(By.text(text));
+            if (again == null) {
+                return found; // gone from view; let the caller's own check speak
+            }
+            Rect now = again.getVisibleBounds();
+            if (now.equals(was)) {
+                return again;
+            }
+            was = now;
+            found = again;
         }
         return found;
     }
