@@ -138,21 +138,11 @@ jobs:
             -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
             -camera-back none -camera-front none -skin 1280x720
           disable-animations: true
-          # The device log is kept whatever happens, and the step still fails
-          # when the tests do. Twice now a shard has failed with every test
-          # saying only that the launcher never appeared and "android" was in
-          # front, which fits both a system dialog on top and an activity whose
-          # main thread never got to draw - and the one recording that would
-          # have told them apart was thrown away with the emulator.
-          script: |
-            ./gradlew --no-daemon connectedDebugAndroidTest \
-              -Pandroid.testInstrumentationRunnerArguments.${{ matrix.filter }} \
-              || failed=1
-            mkdir -p device-log
-            adb logcat -d > device-log/logcat.txt || true
-            adb shell dumpsys window > device-log/window.txt || true
-            adb shell dumpsys activity activities > device-log/activities.txt || true
-            exit ${failed:-0}
+          # One line on purpose: this string is wrapped and handed to a shell by
+          # the action, so anything clever in it - a dollar sign above all - is
+          # at the mercy of two levels of expansion. The work, and the device
+          # log it keeps, live in tools/shard.sh, which can be read and run.
+          script: sh tools/shard.sh ${{ matrix.filter }}
 
       # One name per shard, or the four uploads would fight over one artifact.
       - uses: actions/upload-artifact@v4
