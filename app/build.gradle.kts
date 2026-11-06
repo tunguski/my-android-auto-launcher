@@ -2,6 +2,11 @@ import java.util.Properties
 
 plugins {
     id("com.android.application")
+    // Coverage of the unit tests only. The on-device tests are journeys: what
+    // they prove is that a screen comes up and answers, not which lines ran, and
+    // instrumenting the APK to find out would slow down the slowest part of the
+    // build to measure the part that matters least.
+    jacoco
 }
 
 val appVersionName = "2.4"
@@ -112,4 +117,55 @@ dependencies {
 // Sources are UTF-8 regardless of the platform default (Windows would use CP-1250).
 tasks.withType<JavaCompile>().configureEach {
     options.encoding = "UTF-8"
+}
+
+// ───────────────────────────── coverage ─────────────────────────────
+
+tasks.withType<Test>().configureEach {
+    extensions.configure<JacocoTaskExtension> {
+        // Needed for anything built against the Android plugin: without it the
+        // agent trips over the classes the mockable android.jar generates.
+        isIncludeNoLocationClasses = true
+        excludes = listOf("jdk.internal.*")
+    }
+}
+
+/**
+ * What the unit tests cover, as HTML and XML in build/reports/jacoco.
+ *
+ * The screens are left out on purpose. MainActivity builds its views in code and
+ * can only be exercised on a device, so counting its lines here would report a
+ * number that falls whenever a screen grows, and say nothing about the rules the
+ * unit tests exist to pin down.
+ */
+tasks.register<JacocoReport>("coverage") {
+    group = "verification"
+    description = "Coverage of the unit tests."
+    dependsOn("testDebugUnitTest", "compileDebugJavaWithJavac")
+
+    reports {
+        html.required.set(true)
+        xml.required.set(true)
+    }
+
+    classDirectories.setFrom(
+        fileTree(layout.buildDirectory.dir("intermediates/javac/debug/compileDebugJavaWithJavac/classes")) {
+            exclude(
+                "**/R.class",
+                "**/R$*.class",
+                "**/BuildConfig.*",
+                "**/MainActivity*.class",
+                "**/TripService*.class",
+                "**/BootReceiver*.class",
+                "**/RouteView*.class",
+                "**/Glyph*.class",
+                "**/WxIcon*.class",
+                "**/ApkProvider*.class",
+            )
+        },
+    )
+    sourceDirectories.setFrom(files("src/main/java"))
+    // The one file, not a tree over the whole build directory: a tree there makes
+    // Gradle believe this task consumes the output of every other one.
+    executionData.setFrom(layout.buildDirectory.file("jacoco/testDebugUnitTest.exec"))
 }

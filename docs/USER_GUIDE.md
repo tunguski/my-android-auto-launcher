@@ -183,7 +183,12 @@ them shows that trip instead.
 Three, not all of them: a strip long enough to scroll is a strip nobody reads at
 the wheel. Everything else is behind the **History** button in the corner, which
 opens a table of every stored trip — date, start time, duration and distance, one
-row each. Tapping a row shows that trip on the trip screen.
+row each, with nothing drawn between them: columns that line up need no borders.
+Tapping a row shows that trip on the trip screen, and a swipe to the right — or
+the Back arrow — returns there too, one step back rather than all the way out.
+
+The button sits in the bottom right corner, beside the strip and furthest from
+the driver's line of sight.
 
 ![Every stored trip as a table](previews/trip_history.png)
 
@@ -254,7 +259,17 @@ which a file manager or a USB cable can reach, and which opens in any spreadshee
 # Settings
 
 The settings panel is reached from **All apps → Screen layout**, or by holding the
-clock on the home screen.
+clock on the home screen. A swipe to the right anywhere on it goes back to the
+black screen.
+
+Settings come in groups — a heading, a rule under it, and a card holding the
+controls — laid out in two columns, because the unit is 1280 wide and a single
+column down the middle left half the screen empty while the panel scrolled for
+three screenfuls. The name of each setting is brighter than the sentence
+explaining it: it used to be the other way round, which made the thing being
+looked for the hardest thing to see.
+
+Which build is installed sits in the top right corner, unlabelled.
 
 ![Settings, upper half](previews/settings_top.png)
 

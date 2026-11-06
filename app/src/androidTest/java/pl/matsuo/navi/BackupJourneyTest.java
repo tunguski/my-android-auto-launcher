@@ -241,40 +241,35 @@ public class BackupJourneyTest extends LauncherTest {
 
     // ───────────────────────────── through the settings ─────────────────────────────
 
+    /**
+     * Everything the settings panel says about backup and storage, in one visit.
+     *
+     * <p>Four tests once, one panel each: opening the settings and scrolling to the backup section
+     * cost more than everything they asserted put together, and they all scrolled to the same
+     * place. Choosing a mode rebuilds the panel from the top, which is why each step scrolls again.
+     */
     @Test
-    public void theBackupSectionIsInTheSettings() throws Exception {
+    public void theBackupAndStorageSectionsAnswerFromTheSettings() throws Exception {
+        installTripHistory();
         open("look");
+
         scrollTo(R.string.backup_section);
         scrollTo(R.string.backup_off);
         scrollTo(R.string.backup_drive);
-    }
 
-    @Test
-    public void choosingGoogleDriveWithoutAClientExplainsItself() throws Exception {
-        open("look");
+        // The build carries no OAuth client, so Drive must say so rather than
+        // pretending to work.
         tapAfterScroll(R.string.backup_drive);
         assertEquals(BackupRunner.MODE_DRIVE, BackupRunner.mode(prefs));
-        // The build carries no OAuth client, so it must say so rather than
-        // pretending to work. Choosing a mode rebuilds the panel from the top,
-        // so the message has to be scrolled back into view.
         scrollTo(R.string.backup_no_client);
-    }
 
-    @Test
-    public void choosingTheFolderShowsWhereTripsWillGo() throws Exception {
-        open("look");
         tapAfterScroll(R.string.backup_folder);
         assertEquals(BackupRunner.MODE_FOLDER, BackupRunner.mode(prefs));
-        scrollTo(R.string.storage_section); // brings the end of the panel into view
+        scrollTo(R.string.storage_section);
         assertTrue(
                 "the settings should name the folder trips go to",
                 hasTextContaining(FolderBackup.EXPORT));
-    }
 
-    @Test
-    public void theStorageSectionSaysWhatIsStored() throws Exception {
-        installTripHistory();
-        open("look");
         scrollTo(R.string.backup_export_now); // sits just below the count
         assertTrue(
                 "the number of stored trips should be on screen",

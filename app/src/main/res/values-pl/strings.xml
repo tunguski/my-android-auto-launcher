@@ -11,8 +11,11 @@
 
     <string name="look_title">Wygląd ekranu</string>
     <string name="look_clock_size">Rozmiar zegara</string>
-    <string name="look_brightness">Jasność napisów i ikon (tło zawsze czarne)</string>
-    <string name="look_night">Nocne przyciemnienie (dotknij zegara):  %1$s</string>
+    <string name="look_appearance">Zegar i kolory</string>
+    <string name="look_brightness">Jasność</string>
+    <string name="look_brightness_note">Tylko napisy i ikony; tło zawsze pozostaje czarne</string>
+    <string name="look_night">Nocne przyciemnienie:  %1$s</string>
+    <string name="look_night_note">Albo dotknij zegara na ekranie głównym</string>
     <string name="look_on">WŁ.</string>
     <string name="look_off">WYŁ.</string>
     <string name="look_language">Język</string>
@@ -79,6 +82,7 @@
     <string name="hist_count">tras: %1$d</string>
 
     <string name="home_section">Punkt domu</string>
+    <string name="home_role_section">Domyślny ekran główny</string>
     <string name="home_set_here">Ustaw tutaj dom</string>
     <string name="home_set_address">Wpisz adres…</string>
     <string name="home_saved">Zapisano punkt domu</string>

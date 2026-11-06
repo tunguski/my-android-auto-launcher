@@ -96,6 +96,34 @@ final class BackupRunner {
     }
 
     /**
+     * Writes every stored trip into the export folder, whether it was backed up before or not.
+     *
+     * <p>Here rather than on the settings screen, which is where it used to be, so that it shares
+     * the lock with {@link #runNow}. It did not, and the two are the app's only two writers into
+     * that folder: the driver asks for an export, a fix arrives at that moment and the automatic
+     * backup starts, and both write the same files. The files themselves survive that - replacing
+     * one is a single atomic move - but one of the two runs is refused for its trouble, and there
+     * is no reason to let the app race itself when the lock is already there.
+     *
+     * @return how many trips were written before anything went wrong
+     */
+    static synchronized int exportAll(Context c) {
+        int done = 0;
+        try {
+            TripDb db = TripDb.of(c);
+            FolderBackup folder = new FolderBackup(c.getExternalFilesDir(null));
+            for (TripDb.Row r : db.recent(Integer.MAX_VALUE)) {
+                byte[] artifact = Artifact.build(Track.decode(db.track(r.id)));
+                folder.upload(Artifact.year(r.startedAt), Artifact.name(r.startedAt), artifact);
+                done++;
+            }
+        } catch (Throwable ignored) {
+            // Report what did get out rather than nothing at all.
+        }
+        return done;
+    }
+
+    /**
      * The same, against a given backend, so a test can supply one that fails.
      *
      * <p>One run at a time, whoever asks. {@link #trigger} already serialises its own runs, but a

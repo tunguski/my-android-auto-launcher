@@ -41,7 +41,12 @@ public class SettingsJourneyTest extends LauncherTest {
         // unreachable; it is a ScrollView now.
         open("look");
         assertVisible(R.string.look_clock_size);
+        // The build, in the corner, with no label on it.
+        assertTrue(
+                "the panel does not say which version this is",
+                hasTextContaining("v " + Updater.installedVersion(context)));
         scrollTo(R.string.look_language);
+        scrollTo(R.string.home_section);
         scrollTo(R.string.home_default);
         scrollTo(R.string.home_picker);
         scrollTo(R.string.look_hint);
@@ -188,11 +193,11 @@ public class SettingsJourneyTest extends LauncherTest {
 
     @Test
     public void theHomeSectionShowsWhetherAPointIsSet() throws Exception {
-        open("look");
-        assertTrue(hasTextContaining(str(R.string.home_section)));
-
+        // That the section is on the panel at all is asserted where every other
+        // setting is; this is only about the point it names. Two columns of
+        // groups now, so it sits below the fold and has to be scrolled to.
         open("look", MainActivity.EXTRA_HOME_POINT, "52.2297,21.0122,Warszawa");
-        assertTrue("the stored home point is not shown", hasTextContaining("Warszawa"));
+        scrollToText("Warszawa");
     }
 
     @Test

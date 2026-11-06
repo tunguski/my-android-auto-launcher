@@ -22,8 +22,11 @@
     <!-- Screen layout -->
     <string name="look_title">Screen layout</string>
     <string name="look_clock_size">Clock size</string>
-    <string name="look_brightness">Text and icon brightness (background always black)</string>
-    <string name="look_night">Night dimming (tap the clock):  %1$s</string>
+    <string name="look_appearance">Clock and colours</string>
+    <string name="look_brightness">Brightness</string>
+    <string name="look_brightness_note">Text and icons only; the background is always black</string>
+    <string name="look_night">Night dimming:  %1$s</string>
+    <string name="look_night_note">Or tap the clock on the home screen</string>
     <string name="look_on">ON</string>
     <string name="look_off">OFF</string>
     <string name="look_language">Language</string>
@@ -99,6 +102,7 @@
 
     <!-- Home point -->
     <string name="home_section">Home point</string>
+    <string name="home_role_section">Default home screen</string>
     <string name="home_set_here">Set home here</string>
     <string name="home_set_address">Enter an address…</string>
     <string name="home_saved">Home point saved</string>

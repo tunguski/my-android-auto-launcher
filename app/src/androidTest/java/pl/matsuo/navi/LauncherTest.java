@@ -310,17 +310,29 @@ public abstract class LauncherTest {
 
     UiObject2 scrollToText(String text) {
         UiObject2 found = device.findObject(By.text(text));
-        if (found != null) {
-            return found;
-        }
         UiObject2 panel = device.findObject(By.scrollable(true));
-        assertNotNull("nothing to scroll while looking for " + text, panel);
-        for (int i = 0; i < 6 && found == null; i++) {
-            panel.scroll(Direction.DOWN, 0.4f);
-            device.waitForIdle();
-            found = device.findObject(By.text(text));
+        if (found == null) {
+            assertNotNull("nothing to scroll while looking for " + text, panel);
+            for (int i = 0; i < 6 && found == null; i++) {
+                panel.scroll(Direction.DOWN, 0.4f);
+                device.waitForIdle();
+                found = device.findObject(By.text(text));
+            }
+            assertNotNull("not reachable by scrolling: " + text, found);
         }
-        assertNotNull("not reachable by scrolling: " + text, found);
+        // A view can be on screen by six pixels of its edge and still be found,
+        // which is how the language buttons sat: flush with the bottom of the
+        // panel. A test that then measures one is measuring the edge rather than
+        // the view, so bring it properly into sight - whether it was found here
+        // or was already on screen when this was called.
+        if (panel != null && found.getVisibleBounds().height() < device.getDisplayHeight() / 40) {
+            panel.scroll(Direction.DOWN, 0.15f);
+            device.waitForIdle();
+            UiObject2 again = device.findObject(By.text(text));
+            if (again != null) {
+                found = again;
+            }
+        }
         return found;
     }
 

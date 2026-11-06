@@ -305,13 +305,50 @@ public class MainActivity extends Activity {
         if (swipeBack == null) {
             swipeBack = new GestureDetector(this, new SwipeBack());
         }
-        if (appsView != null || weatherView != null || lookView != null || historyView != null) {
-            swipeBack.onTouchEvent(e);
+        if (appsView == null && weatherView == null && lookView == null && historyView == null) {
+            return super.dispatchTouchEvent(e);
         }
-        return super.dispatchTouchEvent(e);
+        switch (e.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                sideways = false;
+                downX = e.getX();
+                downY = e.getY();
+                break;
+            case MotionEvent.ACTION_MOVE:
+                if (!sideways && isSideways(e)) {
+                    sideways = true;
+                    // Tell the children this touch is over. Without it a drag
+                    // across the app grid never exceeds the grid's own vertical
+                    // slop, so the cell under the finger stays pressed and fires
+                    // on release: a sideways brush of the screen launches
+                    // whatever app it happened to pass over.
+                    MotionEvent cancel = MotionEvent.obtain(e);
+                    cancel.setAction(MotionEvent.ACTION_CANCEL);
+                    super.dispatchTouchEvent(cancel);
+                    cancel.recycle();
+                }
+                break;
+            default:
+                break;
+        }
+        swipeBack.onTouchEvent(e);
+        // Once it is a swipe it stays a swipe, in either direction. Only one of
+        // them goes back, but neither may land as a tap.
+        return sideways || super.dispatchTouchEvent(e);
     }
 
+    private boolean isSideways(MotionEvent e) {
+        float dx = Math.abs(e.getX() - downX);
+        return dx > H * SWIPE_SLOP && dx > 2 * Math.abs(e.getY() - downY);
+    }
+
+    /** How far sideways a finger travels before it stops being a tap. */
+    private static final float SWIPE_SLOP = 0.04f;
+
     private GestureDetector swipeBack;
+    private boolean sideways;
+    private float downX;
+    private float downY;
 
     /** Left to right, and more sideways than up and down. */
     private final class SwipeBack extends GestureDetector.SimpleOnGestureListener {
@@ -328,7 +365,7 @@ public class MainActivity extends Activity {
             float dx = to.getX() - from.getX();
             float dy = to.getY() - from.getY();
             if (dx > H * SWIPE_MIN_W && Math.abs(dx) > 2 * Math.abs(dy)) {
-                showHome();
+                backFromPanel();
                 return true;
             }
             return false;
@@ -337,6 +374,22 @@ public class MainActivity extends Activity {
 
     /** How far a swipe has to travel to count, as a fraction of the screen short side. */
     private static final float SWIPE_MIN_W = 0.12f;
+
+    /**
+     * Where going back from a panel lands.
+     *
+     * <p>The black screen, except from the history table: that is reached from the trip screen and
+     * nowhere else, so going back from it means going back one step rather than all the way out.
+     * Both the swipe and the Back arrow on that screen come here, because two ways back that land
+     * in different places is worse than either one of them.
+     */
+    private void backFromPanel() {
+        boolean fromHistory = historyView != null;
+        showHome();
+        if (fromHistory) {
+            showStats();
+        }
+    }
 
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
@@ -778,6 +831,11 @@ public class MainActivity extends Activity {
     }
 
     private View header(String title) {
+        return header(title, this::showHome);
+    }
+
+    /** A header whose Back arrow goes somewhere other than the black screen. */
+    private View header(String title, Runnable onBack) {
         LinearLayout h = new LinearLayout(this);
         h.setOrientation(LinearLayout.HORIZONTAL);
         h.setGravity(Gravity.CENTER_VERTICAL);
@@ -788,7 +846,7 @@ public class MainActivity extends Activity {
         back.setTextSize(TypedValue.COMPLEX_UNIT_PX, H * 0.05f);
         back.setPadding(px(0.03f), px(0.02f), px(0.05f), px(0.02f));
         back.setBackground(tileBg());
-        back.setOnClickListener(v -> showHome());
+        back.setOnClickListener(v -> onBack.run());
         h.addView(back);
         TextView t = new TextView(this);
         t.setText(title);
@@ -820,17 +878,7 @@ public class MainActivity extends Activity {
         box.setOrientation(LinearLayout.VERTICAL);
         box.setBackgroundColor(BG);
         box.setPadding(px(0.04f), px(0.03f), px(0.04f), px(0.03f));
-        LinearLayout statsHdr = (LinearLayout) header(getString(R.string.stats_title));
-        TextView all = new TextView(this);
-        all.setText(R.string.hist_title);
-        all.setTextColor(TEXT);
-        all.setTextSize(TypedValue.COMPLEX_UNIT_PX, H * 0.045f);
-        all.setPadding(px(0.04f), px(0.02f), px(0.04f), px(0.02f));
-        all.setBackground(tileBg());
-        all.setOnClickListener(v -> showHistory());
-        statsHdr.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
-        statsHdr.addView(all);
-        box.addView(statsHdr);
+        box.addView(header(getString(R.string.stats_title)));
 
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
@@ -872,7 +920,25 @@ public class MainActivity extends Activity {
 
         box.addView(
                 text(getString(R.string.stats_history), 0.032f, TEXT_DIM), marginTop(px(0.025f)));
-        box.addView(historyStrip());
+
+        // The strip along the foot of the screen, and the way to the rest of the
+        // trips in the corner furthest from the driver's line of sight.
+        TextView all = new TextView(this);
+        all.setText(R.string.hist_title);
+        all.setTextColor(TEXT);
+        all.setTextSize(TypedValue.COMPLEX_UNIT_PX, H * 0.045f);
+        all.setPadding(px(0.04f), px(0.025f), px(0.04f), px(0.025f));
+        all.setBackground(tileBg());
+        all.setOnClickListener(v -> showHistory());
+
+        stripRow = new LinearLayout(this);
+        stripRow.setOrientation(LinearLayout.HORIZONTAL);
+        stripRow.setGravity(Gravity.BOTTOM);
+        stripRow.addView(historyStrip(), new LinearLayout.LayoutParams(0, -2, 1f));
+        LinearLayout.LayoutParams allLp = new LinearLayout.LayoutParams(-2, -2);
+        allLp.setMargins(px(0.02f), 0, 0, 0);
+        stripRow.addView(all, allLp);
+        box.addView(stripRow);
 
         statsView = box;
         content.addView(statsView);
@@ -909,7 +975,8 @@ public class MainActivity extends Activity {
         box.setBackgroundColor(BG);
         box.setPadding(px(0.04f), px(0.03f), px(0.04f), px(0.03f));
 
-        LinearLayout hdr = (LinearLayout) header(getString(R.string.hist_title));
+        LinearLayout hdr =
+                (LinearLayout) header(getString(R.string.hist_title), this::backFromPanel);
         hdr.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
         hdr.addView(text(getString(R.string.hist_count, rows.size()), 0.04f, TEXT_DIM));
         box.addView(hdr);
@@ -921,7 +988,11 @@ public class MainActivity extends Activity {
         columns.addView(cell(getString(R.string.hist_start), TEXT_DIM, 1f));
         columns.addView(cell(getString(R.string.stats_time), TEXT_DIM, 1f));
         columns.addView(cell(getString(R.string.stats_distance), TEXT_DIM, 1f));
-        box.addView(columns);
+        box.addView(columns, new LinearLayout.LayoutParams(-1, -2));
+
+        View rule = new View(this);
+        rule.setBackgroundColor(TILE_EDGE);
+        box.addView(rule, new LinearLayout.LayoutParams(-1, Math.max(1, px(0.004f))));
 
         LinearLayout list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
@@ -934,20 +1005,27 @@ public class MainActivity extends Activity {
             Date started = new Date(r.startedAt * 1000L);
             LinearLayout line = new LinearLayout(this);
             line.setOrientation(LinearLayout.HORIZONTAL);
-            line.setBackground(tileBg());
-            line.setPadding(px(0.02f), px(0.016f), px(0.02f), px(0.016f));
+            // No background and no rules between the rows: a table whose columns
+            // line up needs no borders to be read as one. The padding here is the
+            // padding of the header above, or the columns would not line up.
+            line.setPadding(px(0.02f), px(0.018f), px(0.02f), px(0.018f));
             line.addView(cell(day.format(started), TEXT, 2f));
             line.addView(cell(clock.format(started), TEXT_DIM, 1f));
             line.addView(cell(Format.duration(r.durationMillis()), TEXT, 1f));
             line.addView(cell(Format.distance(r.meters), TEXT, 1f));
             long id = r.id;
+            line.setClickable(true);
+            pressable(line);
             line.setOnClickListener(
                     v -> {
                         showHome();
                         showStats();
                         selectTrip(id);
                     });
-            list.addView(line, marginTop(px(0.01f)));
+            // Full width, or the weights would divide the width of the text in
+            // the row rather than the width of the table, and no column would
+            // sit under its heading.
+            list.addView(line, new LinearLayout.LayoutParams(-1, -2));
         }
         ScrollView scroll = new ScrollView(this);
         scroll.addView(list);
@@ -956,6 +1034,25 @@ public class MainActivity extends Activity {
         historyView = box;
         content.addView(historyView);
         homeView.setVisibility(View.INVISIBLE);
+    }
+
+    /** Dims a view while it is held, so a row with no background still answers a finger. */
+    private void pressable(View v) {
+        v.setOnTouchListener(
+                (view, e) -> {
+                    switch (e.getActionMasked()) {
+                        case MotionEvent.ACTION_DOWN:
+                            view.setAlpha(0.5f);
+                            break;
+                        case MotionEvent.ACTION_UP:
+                        case MotionEvent.ACTION_CANCEL:
+                            view.setAlpha(1f);
+                            break;
+                        default:
+                            break;
+                    }
+                    return false;
+                });
     }
 
     /** One column of the history table. */
@@ -1034,13 +1131,17 @@ public class MainActivity extends Activity {
     }
 
     private void refreshHistoryStrip() {
-        if (statsView == null) {
+        if (statsView == null || stripRow == null) {
             return;
         }
-        LinearLayout box = (LinearLayout) statsView;
-        box.removeViewAt(box.getChildCount() - 1);
-        box.addView(historyStrip());
+        // Only the strip, which is the first of the two: the History button next
+        // to it has nothing to redraw and would be lost with it.
+        stripRow.removeViewAt(0);
+        stripRow.addView(historyStrip(), 0, new LinearLayout.LayoutParams(0, -2, 1f));
     }
+
+    /** The strip of recent trips and the History button, along the foot of the trip screen. */
+    private LinearLayout stripRow;
 
     private void updateStats() {
         if (statsView == null) {
@@ -1175,7 +1276,32 @@ public class MainActivity extends Activity {
     }
 
     // ───────────────────────────── SCREEN LAYOUT ─────────────────────────────
+    /** Between one group of settings and the next. */
+    private static final float GROUP_GAP = 0.05f;
 
+    /** Between one setting and the next inside a group. */
+    private static final float SETTING_GAP = 0.028f;
+
+    /**
+     * The settings panel.
+     *
+     * <p>Two columns, because the unit is 1280 wide and a single column down the middle left half
+     * the screen empty while the panel had outgrown three screenfuls of scrolling. Scrolling costs
+     * more than reading in a car.
+     *
+     * <p>Settings are grouped, each group a heading with a rule under it and a card holding its
+     * controls. The card is what separates one group from the next: a boundary drawn with a
+     * background rather than with empty space, which survives daylight on a glossy screen where
+     * extra padding does not.
+     *
+     * <p>Headings and labels are {@link #TEXT}, the sentences under them {@link #TEXT_DIM}. It used
+     * to be the other way round, the label dimmer than the value it labelled, 4.1:1 against 11.2:1
+     * on black, so the thing being looked for was the hardest thing to see.
+     *
+     * <p>No capitals in the headings, however much they would help them read as headings: Android
+     * renders them transformed but the tests read the text, so a label in capitals is a label
+     * nothing can find.
+     */
     private void showLook() {
         if (lookView != null) {
             content.removeView(lookView);
@@ -1184,9 +1310,97 @@ public class MainActivity extends Activity {
         box.setOrientation(LinearLayout.VERTICAL);
         box.setBackgroundColor(BG);
         box.setPadding(px(0.04f), px(0.03f), px(0.04f), px(0.03f));
-        box.addView(header(getString(R.string.look_title)));
+        LinearLayout hdr = (LinearLayout) header(getString(R.string.look_title));
+        // Which build this is, in the corner, with no label on it. The Updates
+        // group says it at length; this is for reading it at a glance.
+        hdr.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
+        hdr.addView(text("v " + Updater.installedVersion(this), 0.04f, TEXT_DIM));
+        box.addView(hdr);
 
-        box.addView(text(getString(R.string.look_clock_size), 0.045f, TEXT_DIM));
+        LinearLayout columns = new LinearLayout(this);
+        columns.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout left = settingsColumn();
+        LinearLayout right = settingsColumn();
+        columns.addView(left, new LinearLayout.LayoutParams(0, -2, 1f));
+        LinearLayout.LayoutParams rightLp = new LinearLayout.LayoutParams(0, -2, 1f);
+        rightLp.setMargins(px(0.045f), 0, 0, 0);
+        columns.addView(right, rightLp);
+        box.addView(columns);
+
+        addAppearanceGroup(left);
+        addHomePointGroup(left);
+        addHomeRoleGroup(left);
+        addRecordingSection(group(right, getString(R.string.record_section)));
+        addUpdateSection(group(right, getString(R.string.update_section)));
+        addBackupSection(group(right, getString(R.string.backup_section)));
+        addStorageSection(group(right, getString(R.string.storage_section)));
+
+        box.addView(text(getString(R.string.look_hint), 0.032f, TEXT_DIM), marginTop(px(0.04f)));
+
+        // Two columns halve it, but the settings still do not fit on 720 px.
+        ScrollView scroller = new ScrollView(this);
+        scroller.setBackgroundColor(BG);
+        scroller.addView(box, new FrameLayout.LayoutParams(-1, -2));
+        lookView = scroller;
+        content.addView(lookView);
+        homeView.setVisibility(View.INVISIBLE);
+    }
+
+    private LinearLayout settingsColumn() {
+        LinearLayout c = new LinearLayout(this);
+        c.setOrientation(LinearLayout.VERTICAL);
+        return c;
+    }
+
+    /**
+     * Starts a group of settings in a column.
+     *
+     * @return the card its controls go into
+     */
+    private LinearLayout group(LinearLayout column, String title) {
+        TextView heading = text(title, 0.042f, TEXT);
+        heading.setLetterSpacing(0.10f);
+        column.addView(heading, marginTop(px(GROUP_GAP)));
+
+        View rule = new View(this);
+        rule.setBackgroundColor(TILE_EDGE);
+        LinearLayout.LayoutParams ruleLp =
+                new LinearLayout.LayoutParams(-1, Math.max(1, px(0.004f)));
+        ruleLp.setMargins(0, px(0.008f), 0, px(0.012f));
+        column.addView(rule, ruleLp);
+
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setBackground(tileBg());
+        card.setPadding(px(0.025f), px(0.022f), px(0.025f), px(0.022f));
+        column.addView(card, new LinearLayout.LayoutParams(-1, -2));
+        return card;
+    }
+
+    /** The name of one setting: what the eye scans for, so the brighter of the two. */
+    private TextView settingLabel(String s) {
+        return text(s, 0.04f, TEXT);
+    }
+
+    /** The sentence under a setting that explains it. */
+    private TextView settingNote(String s) {
+        return text(s, 0.032f, TEXT_DIM);
+    }
+
+    /** The current value of a setting, on a line of its own rather than inside its label. */
+    private TextView settingValue(String s) {
+        return text(s, 0.048f, TEXT);
+    }
+
+    /** One setting from the next inside a card; every gap in the panel is this gap. */
+    private void settingGap(LinearLayout card) {
+        card.addView(new View(this), new LinearLayout.LayoutParams(-1, px(SETTING_GAP)));
+    }
+
+    private void addAppearanceGroup(LinearLayout column) {
+        LinearLayout card = group(column, getString(R.string.look_appearance));
+
+        card.addView(settingLabel(getString(R.string.look_clock_size)));
         LinearLayout sizes = new LinearLayout(this);
         sizes.setOrientation(LinearLayout.HORIZONTAL);
         int cur = prefs.getInt("size", 0);
@@ -1195,7 +1409,7 @@ public class MainActivity extends Activity {
             TextView o = new TextView(this);
             o.setText(SIZE_NAMES[i]);
             o.setGravity(Gravity.CENTER);
-            o.setTextSize(TypedValue.COMPLEX_UNIT_PX, H * 0.06f);
+            o.setTextSize(TypedValue.COMPLEX_UNIT_PX, H * 0.055f);
             o.setTextColor(i == cur ? TEXT : TEXT_DIM);
             GradientDrawable bgd = tileBg();
             if (i == cur) {
@@ -1208,17 +1422,19 @@ public class MainActivity extends Activity {
                         rebuildHome();
                         showLook(); // redraw so the selection moves
                     });
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, px(0.18f), 1f);
-            lp.setMargins(px(0.015f), px(0.02f), px(0.015f), px(0.05f));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, px(0.15f), 1f);
+            lp.setMargins(i == 0 ? 0 : px(0.015f), px(0.012f), 0, 0);
             sizes.addView(o, lp);
         }
-        box.addView(sizes);
+        card.addView(sizes);
 
-        box.addView(text(getString(R.string.look_brightness), 0.045f, TEXT_DIM));
+        settingGap(card);
+        card.addView(settingLabel(getString(R.string.look_brightness)));
+        card.addView(settingNote(getString(R.string.look_brightness_note)));
         LinearLayout brRow = new LinearLayout(this);
         brRow.setOrientation(LinearLayout.HORIZONTAL);
         brRow.setGravity(Gravity.CENTER_VERTICAL);
-        final TextView brVal = text(prefs.getInt("bright", 100) + "%", 0.05f, TEXT);
+        final TextView brVal = settingValue(prefs.getInt("bright", 100) + "%");
         SeekBar sb = new SeekBar(this);
         sb.setMax(85); // maps to 15..100 percent
         sb.setProgress(prefs.getInt("bright", 100) - 15);
@@ -1245,19 +1461,20 @@ public class MainActivity extends Activity {
                 });
         brRow.addView(sb, new LinearLayout.LayoutParams(0, px(0.12f), 1f));
         brRow.addView(brVal, new LinearLayout.LayoutParams(px(0.16f), -2));
-        LinearLayout.LayoutParams brLp = new LinearLayout.LayoutParams(-1, -2);
-        brLp.setMargins(0, 0, 0, px(0.03f));
-        box.addView(brRow, brLp);
+        card.addView(brRow);
 
+        settingGap(card);
         boolean dim = prefs.getBoolean("dim", false);
+        // Label and value stay in one button here: it is the control as much as
+        // the label, and splitting them would leave nothing to press.
         TextView dimBtn = new TextView(this);
         dimBtn.setText(
                 getString(
                         R.string.look_night,
                         getString(dim ? R.string.look_on : R.string.look_off)));
         dimBtn.setTextColor(TEXT);
-        dimBtn.setTextSize(TypedValue.COMPLEX_UNIT_PX, H * 0.05f);
-        dimBtn.setPadding(px(0.04f), px(0.03f), px(0.04f), px(0.03f));
+        dimBtn.setTextSize(TypedValue.COMPLEX_UNIT_PX, H * 0.045f);
+        dimBtn.setPadding(px(0.035f), px(0.025f), px(0.035f), px(0.025f));
         dimBtn.setBackground(tileBg());
         dimBtn.setOnClickListener(
                 v -> {
@@ -1265,59 +1482,42 @@ public class MainActivity extends Activity {
                     applyNightDim();
                     showLook();
                 });
-        box.addView(dimBtn, new LinearLayout.LayoutParams(-2, -2));
+        card.addView(dimBtn, new LinearLayout.LayoutParams(-2, -2));
+        card.addView(settingNote(getString(R.string.look_night_note)), marginTop(px(0.01f)));
 
-        box.addView(
-                text(getString(R.string.home_section) + ":  " + homeLabel(), 0.045f, TEXT_DIM),
-                marginTop(px(0.03f)));
-        LinearLayout homePoint = new LinearLayout(this);
-        homePoint.setOrientation(LinearLayout.HORIZONTAL);
-        homePoint.addView(flatButton(getString(R.string.home_set_here), this::setHomeHere));
-        homePoint.addView(flatButton(getString(R.string.home_set_address), this::askHomeAddress));
-        box.addView(homePoint);
-
-        box.addView(
-                text(getString(R.string.look_language), 0.045f, TEXT_DIM), marginTop(px(0.03f)));
+        settingGap(card);
+        card.addView(settingLabel(getString(R.string.look_language)));
         LinearLayout langs = new LinearLayout(this);
         langs.setOrientation(LinearLayout.HORIZONTAL);
         String curLang = prefs.getString("lang", "");
         langs.addView(langButton("", R.string.lang_system, curLang));
         langs.addView(langButton("en", R.string.lang_en, curLang));
         langs.addView(langButton("pl", R.string.lang_pl, curLang));
-        box.addView(langs);
+        card.addView(langs);
+    }
 
-        TextView homeBtn = new TextView(this);
-        homeBtn.setText(R.string.home_default);
-        homeBtn.setTextColor(TEXT);
-        homeBtn.setTextSize(TypedValue.COMPLEX_UNIT_PX, H * 0.045f);
-        homeBtn.setPadding(px(0.04f), px(0.03f), px(0.04f), px(0.03f));
-        homeBtn.setBackground(tileBg());
-        homeBtn.setOnClickListener(v -> requestHomeRole());
-        box.addView(homeBtn, marginTop(px(0.03f)));
+    /** Where "to home" is measured from. The heading names the setting, so the card shows it. */
+    private void addHomePointGroup(LinearLayout column) {
+        LinearLayout card = group(column, getString(R.string.home_section));
+        card.addView(settingValue(homeLabel()));
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.addView(flatButton(getString(R.string.home_set_here), this::setHomeHere));
+        row.addView(flatButton(getString(R.string.home_set_address), this::askHomeAddress));
+        card.addView(row);
+    }
 
-        TextView pickerBtn = new TextView(this);
-        pickerBtn.setText(R.string.home_picker);
-        pickerBtn.setTextColor(TEXT_DIM);
-        pickerBtn.setTextSize(TypedValue.COMPLEX_UNIT_PX, H * 0.045f);
-        pickerBtn.setPadding(px(0.04f), px(0.03f), px(0.04f), px(0.03f));
-        pickerBtn.setBackground(tileBg());
-        pickerBtn.setOnClickListener(v -> safeStart(new Intent(Settings.ACTION_HOME_SETTINGS)));
-        box.addView(pickerBtn, marginTop(px(0.02f)));
-
-        addRecordingSection(box);
-        addUpdateSection(box);
-        addBackupSection(box);
-        addStorageSection(box);
-
-        box.addView(text(getString(R.string.look_hint), 0.035f, TEXT_DIM), marginTop(px(0.04f)));
-
-        // The settings do not fit on a 720 px screen, so this screen scrolls.
-        ScrollView scroller = new ScrollView(this);
-        scroller.setBackgroundColor(BG);
-        scroller.addView(box, new FrameLayout.LayoutParams(-1, -2));
-        lookView = scroller;
-        content.addView(lookView);
-        homeView.setVisibility(View.INVISIBLE);
+    /**
+     * Claiming the HOME role, which is a different thing from the home point and used to sit in the
+     * same run of buttons as it.
+     */
+    private void addHomeRoleGroup(LinearLayout column) {
+        LinearLayout card = group(column, getString(R.string.home_role_section));
+        card.addView(flatButton(getString(R.string.home_default), this::requestHomeRole));
+        card.addView(
+                flatButton(
+                        getString(R.string.home_picker),
+                        () -> safeStart(new Intent(Settings.ACTION_HOME_SETTINGS))));
     }
 
     // ───────────────────────────── RECORDING ─────────────────────────────
@@ -1331,9 +1531,7 @@ public class MainActivity extends Activity {
      * can do about a cold receiver.
      */
     private void addRecordingSection(LinearLayout box) {
-        box.addView(
-                text(getString(R.string.record_section), 0.045f, TEXT_DIM), marginTop(px(0.04f)));
-        box.addView(text(getString(R.string.record_interval), 0.035f, TEXT_DIM));
+        box.addView(settingLabel(getString(R.string.record_interval)));
 
         int current = TripService.intervalMillis(prefs) / 1000;
         LinearLayout row = new LinearLayout(this);
@@ -1388,8 +1586,6 @@ public class MainActivity extends Activity {
      * <p>The app is on no store, so without this the owner finds out about a release by accident.
      */
     private void addUpdateSection(LinearLayout box) {
-        box.addView(
-                text(getString(R.string.update_section), 0.045f, TEXT_DIM), marginTop(px(0.04f)));
         box.addView(
                 text(
                         getString(R.string.update_installed, Updater.installedVersion(this)),
@@ -1530,8 +1726,6 @@ public class MainActivity extends Activity {
      * it, which is the point of keeping the whole thing behind {@link BackupRunner}.
      */
     private void addBackupSection(LinearLayout box) {
-        box.addView(
-                text(getString(R.string.backup_section), 0.045f, TEXT_DIM), marginTop(px(0.04f)));
 
         String mode = BackupRunner.mode(prefs);
         LinearLayout modes = new LinearLayout(this);
@@ -1702,8 +1896,6 @@ public class MainActivity extends Activity {
 
     /** What the trips take up, and the leftovers of the CSV import. */
     private void addStorageSection(LinearLayout box) {
-        box.addView(
-                text(getString(R.string.storage_section), 0.045f, TEXT_DIM), marginTop(px(0.04f)));
 
         TripDb db = TripDb.of(this);
         File dbFile = getDatabasePath(TripDb.NAME);
@@ -1746,23 +1938,9 @@ public class MainActivity extends Activity {
         final Context app = getApplicationContext();
         new Thread(
                         () -> {
-                            int done = 0;
-                            try {
-                                TripDb db = TripDb.of(app);
-                                FolderBackup folder =
-                                        new FolderBackup(app.getExternalFilesDir(null));
-                                for (TripDb.Row r : db.recent(Integer.MAX_VALUE)) {
-                                    byte[] artifact = Artifact.build(Track.decode(db.track(r.id)));
-                                    folder.upload(
-                                            Artifact.year(r.startedAt),
-                                            Artifact.name(r.startedAt),
-                                            artifact);
-                                    done++;
-                                }
-                            } catch (Throwable ignored) {
-                                // Report what did get out rather than nothing at all.
-                            }
-                            final int exported = done;
+                            // Through BackupRunner, which holds the lock the
+                            // automatic backup holds: both write the same folder.
+                            final int exported = BackupRunner.exportAll(app);
                             ui.post(() -> toast(getString(R.string.backup_exported, exported)));
                         },
                         "export")

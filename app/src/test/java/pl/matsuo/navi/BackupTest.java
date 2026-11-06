@@ -9,6 +9,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.Arrays;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -93,6 +94,69 @@ public class BackupTest {
             assertFalse("a .part file was left behind: " + f, f.getName().endsWith(".part"));
         }
     }
+
+    @Test
+    public void twoRunsWritingTheSameTripLeaveOneWholeFile() throws Exception {
+        // The defect this pins down lost data rather than corrupting it: two runs
+        // overlapped, one renamed its scratch file over the other's, and the
+        // trip whose export had just been consumed was already marked as copied.
+        // Whatever the interleaving, the file has to exist and be one of the two
+        // payloads whole - never half of one, never missing.
+        File root = folder.newFolder("files");
+        FolderBackup backup = new FolderBackup(root);
+        byte[] red = new byte[4096];
+        byte[] blue = new byte[4096];
+        Arrays.fill(red, (byte) 'r');
+        Arrays.fill(blue, (byte) 'b');
+
+        for (int round = 0; round < 20; round++) {
+            Thread one = uploader(backup, red);
+            Thread two = uploader(backup, blue);
+            one.start();
+            two.start();
+            one.join();
+            two.join();
+            // A run may be refused: replacing a file that another run is
+            // replacing at the same instant is denied outright on Windows, which
+            // is where this runs. That costs one trip's export until the next
+            // run. What must never happen is the file below being destroyed or
+            // left half written, and that is what is asserted.
+
+            File dir = new File(new File(root, FolderBackup.EXPORT), "2026");
+            File written = new File(dir, "trip.csv.gz");
+            assertTrue("the export vanished in round " + round, written.exists());
+            assertTrue("the export vanished in round " + round + ": " + failure, written.exists());
+            byte[] got = Files.readAllBytes(written.toPath());
+            assertTrue(
+                    "a half written export in round "
+                            + round
+                            + ": "
+                            + got.length
+                            + " bytes, "
+                            + failure,
+                    Arrays.equals(got, red) || Arrays.equals(got, blue));
+            for (File f : dir.listFiles()) {
+                assertFalse("scratch file left behind: " + f, f.getName().endsWith(".part"));
+            }
+        }
+    }
+
+    /** One export, with whatever the thread fails with carried out to the test. */
+    private Thread uploader(FolderBackup backup, byte[] body) {
+        Thread t =
+                new Thread(
+                        () -> {
+                            try {
+                                backup.upload("2026", "trip.csv.gz", body);
+                            } catch (IOException e) {
+                                throw new RuntimeException(e);
+                            }
+                        });
+        t.setUncaughtExceptionHandler((thread, e) -> failure = e);
+        return t;
+    }
+
+    private volatile Throwable failure;
 
     @Test
     public void uploadingTheSameTripAgainReplacesIt() throws Exception {

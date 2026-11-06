@@ -10,6 +10,7 @@ import androidx.test.uiautomator.By;
 import androidx.test.uiautomator.UiObject2;
 import java.io.File;
 import java.util.List;
+import java.util.regex.Pattern;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -136,6 +137,9 @@ public class TripJourneyTest extends LauncherTest {
         assertFalse(
                 "the route disappeared after selecting a trip",
                 device.findObject(By.text(str(R.string.stats_no_route))) != null);
+        // Redrawing the strip must not take the History button next to it with
+        // it: they share a row at the foot of the screen.
+        assertVisible(R.string.hist_title);
     }
 
     @Test
@@ -244,6 +248,19 @@ public class TripJourneyTest extends LauncherTest {
         assertTrue(
                 "the table does not say how many trips there are",
                 hasTextContaining(str(R.string.hist_count, 5)));
+
+        // It is a table, so the figures have to stand under their headings. The
+        // rows were laid out to the width of their own text once, which left
+        // every column somewhere else and the date cut in half.
+        UiObject2 startHeading = waitFor(By.text(str(R.string.hist_start)));
+        UiObject2 firstStart = waitFor(By.text(Pattern.compile("\\d{2}:\\d{2}")));
+        assertTrue(
+                "the start column does not sit under its heading: "
+                        + startHeading.getVisibleBounds()
+                        + " against "
+                        + firstStart.getVisibleBounds(),
+                Math.abs(startHeading.getVisibleBounds().left - firstStart.getVisibleBounds().left)
+                        < 12);
     }
 
     @Test
@@ -255,13 +272,23 @@ public class TripJourneyTest extends LauncherTest {
     }
 
     @Test
-    public void swipingRightOnTheHistoryTableReturnsToTheBlackScreen() throws Exception {
+    public void swipingRightOnTheHistoryTableGoesBackToTheTripScreen() throws Exception {
         installFiveFinishedDrives();
         open("trip");
         tapText(R.string.hist_title);
         assertVisible(R.string.hist_date);
 
+        // One step back, not all the way out: the table is only reachable from
+        // the trip screen, so that is where back from it means.
         swipeRight();
-        assertVisible(R.string.tile_nav);
+        assertVisible(R.string.stats_title);
+        assertVisible(R.string.stats_distance);
+
+        // The Back arrow on that screen has to land in the same place, or the
+        // two ways back from it would mean different things.
+        tapText(R.string.hist_title);
+        assertVisible(R.string.hist_date);
+        tapText(R.string.nav_back);
+        assertVisible(R.string.stats_title);
     }
 }

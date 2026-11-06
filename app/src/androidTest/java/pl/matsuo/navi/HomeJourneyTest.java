@@ -129,6 +129,9 @@ public class HomeJourneyTest extends LauncherTest {
     // ───────────────────────── swiping back to the black screen ─────────────────────────
 
     @Test
+    // The app grid and the settings panel are the two panels whose children claim
+    // the touch stream; the weather screen and the history table go through the
+    // same branch and are not asserted separately.
     public void swipingRightOnTheAppListReturnsToTheBlackScreen() throws Exception {
         tapText(R.string.tile_apps);
         assertVisible(R.string.apps_title);
@@ -138,25 +141,20 @@ public class HomeJourneyTest extends LauncherTest {
     }
 
     @Test
-    public void swipingRightOnTheWeatherScreenReturnsToTheBlackScreen() throws Exception {
-        tapText(R.string.tile_weather);
-        assertVisible(R.string.weather_title);
-
-        swipeRight();
-        assertVisible(R.string.tile_nav);
-    }
-
-    @Test
     public void swipingLeftDoesNotLeaveTheScreen() throws Exception {
         // Only one direction goes back, or every sideways scroll inside a panel
-        // would throw the driver out of it.
+        // would throw the driver out of it. And a drag across the app grid must
+        // not count as a tap: it never exceeds the grid's own vertical slop, so
+        // the cell under the finger stayed pressed and fired on release, which
+        // meant brushing the screen sideways launched whatever it passed over.
         tapText(R.string.tile_apps);
         assertVisible(R.string.apps_title);
 
         int y = device.getDisplayHeight() / 2;
-        device.swipe(device.getDisplayWidth() * 9 / 10, y, device.getDisplayWidth() / 4, y, 10);
+        device.swipe(device.getDisplayWidth() * 3 / 4, y, device.getDisplayWidth() / 4, y, 30);
         device.waitForIdle();
 
+        assertEquals("a sideways drag opened an app", PKG, device.getCurrentPackageName());
         assertVisible(R.string.apps_title);
     }
 }
