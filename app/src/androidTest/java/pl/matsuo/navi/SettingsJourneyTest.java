@@ -316,12 +316,12 @@ public class SettingsJourneyTest extends LauncherTest {
 
         open("look");
         for (int i = 0; i < 3; i++) {
-            scrollTo(R.string.pics_lego).click();
+            tapForAPicture(i);
             assertTrue("the seeded cache did not draw", settledOnAPicture());
             device.click(device.getDisplayWidth() / 2, device.getDisplayHeight() / 2);
             assertVisible(R.string.look_title);
         }
-        scrollTo(R.string.pics_lego).click();
+        tapForAPicture(3);
         assertTrue("the seeded cache did not draw", settledOnAPicture());
 
         // Whatever this device managed to fetch, there is at most one of it.
@@ -395,6 +395,11 @@ public class SettingsJourneyTest extends LauncherTest {
      */
     private void seedPictures(String set) throws Exception {
         File dir = new File(context.getCacheDir(), Pics.cacheDir(set));
+        // Emptied first. The cache outlives a test - nothing in the reset
+        // between them touches it - so a test before this one may have left ten
+        // fetched pictures here, and seeding on top of those would leave twenty,
+        // only half of them this test's own.
+        deleteTree(dir);
         assertTrue("could not make " + dir, dir.mkdirs() || dir.isDirectory());
         StringBuilder credits = new StringBuilder();
         for (int i = 0; i < Pics.WANTED; i++) {
@@ -451,8 +456,50 @@ public class SettingsJourneyTest extends LauncherTest {
             }
             Thread.sleep(250);
         }
-        fail("the picture screen was still loading after " + PICTURE_MS / 1000 + "s");
+        fail(
+                "the picture screen was still loading after "
+                        + PICTURE_MS / 1000
+                        + "s; what was on screen: "
+                        + whatIsOnScreen());
         return false;
+    }
+
+    /**
+     * Asks the settings for a picture, and does not go on until they have given way to one.
+     *
+     * <p>The panel is built again every time a picture is closed, and scrolling to a button does
+     * not wait for that: a tap can land where the button was a moment ago and be swallowed. Left
+     * alone, that shows up much later as a wait for a photograph timing out - which blames the
+     * pictures for a tap that was never taken. Checked here instead, straight after the tap, and
+     * tried again rather than failing on the first swallowed one.
+     */
+    private void tapForAPicture(int round) {
+        for (int attempt = 0; attempt < 3; attempt++) {
+            scrollTo(R.string.pics_lego).click();
+            if (device.wait(Until.gone(By.text(str(R.string.look_title))), TIMEOUT_MS)) {
+                return;
+            }
+        }
+        fail("round " + round + ": the settings would not give way to a picture");
+    }
+
+    /**
+     * Every piece of text on screen, for a failure message that explains itself.
+     *
+     * <p>A test that times out waiting for something says only that it waited. Which of the ways it
+     * could have got there actually happened - the picture never arrived, or the tap that was meant
+     * to ask for one never landed and the settings are still up - is the whole question, and a
+     * screen read at the moment of failure answers it without a second run.
+     */
+    private String whatIsOnScreen() {
+        StringBuilder seen = new StringBuilder();
+        for (UiObject2 view : device.findObjects(By.clazz("android.widget.TextView"))) {
+            String said = view.getText();
+            if (said != null && !said.trim().isEmpty()) {
+                seen.append('[').append(said.trim()).append(']');
+            }
+        }
+        return seen.length() == 0 ? "nothing with any text in it" : seen.toString();
     }
 
     /** Whether the screen holds more than one colour, which a drawn photograph always does. */
