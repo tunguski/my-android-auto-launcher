@@ -4,6 +4,7 @@ import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentat
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import android.graphics.Bitmap;
 import android.graphics.Rect;
@@ -12,6 +13,8 @@ import androidx.test.filters.LargeTest;
 import androidx.test.uiautomator.By;
 import androidx.test.uiautomator.UiObject2;
 import androidx.test.uiautomator.Until;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.util.List;
 import org.junit.Before;
 import org.junit.Test;
@@ -288,13 +291,8 @@ public class SettingsJourneyTest extends LauncherTest {
         // network, so a device with no way out says so, and a device with one
         // draws a photograph and names whoever took it. What must never happen
         // is a screen that is neither.
-        boolean saidItHasNone =
-                device.wait(Until.hasObject(By.text(str(R.string.pics_none))), TIMEOUT_MS);
-        if (!saidItHasNone) {
-            assertTrue("neither a picture nor a word about why not", somethingIsDrawn());
-            assertTrue(
-                    "a picture arrived with nobody named beside it",
-                    device.wait(Until.hasObject(By.textContains(" / ")), TIMEOUT_MS));
+        if (settledOnAPicture()) {
+            assertTrue("a picture is named but nothing is drawn", somethingIsDrawn());
         }
 
         device.click(device.getDisplayWidth() / 2, device.getDisplayHeight() / 2);
@@ -308,15 +306,23 @@ public class SettingsJourneyTest extends LauncherTest {
         // pictures looked at in a row left three full-screen views in the tree,
         // three bitmaps held, and three photographers' names in the corner, of
         // which the one being read was the oldest and so the wrong one.
+        //
+        // The cache is filled here rather than fetched, because what is being
+        // tested is how views are put on screen and taken off again, which has
+        // nothing to do with where the pictures came from. Asking the network
+        // four times over would only add a way for this to fail that has
+        // nothing to do with what it is checking.
+        seedPictures(Pics.LEGO);
+
         open("look");
         for (int i = 0; i < 3; i++) {
             scrollTo(R.string.pics_lego).click();
-            device.waitForIdle();
+            assertTrue("the seeded cache did not draw", settledOnAPicture());
             device.click(device.getDisplayWidth() / 2, device.getDisplayHeight() / 2);
             assertVisible(R.string.look_title);
         }
         scrollTo(R.string.pics_lego).click();
-        device.waitForIdle();
+        assertTrue("the seeded cache did not draw", settledOnAPicture());
 
         // Whatever this device managed to fetch, there is at most one of it.
         assertTrue(
@@ -379,6 +385,74 @@ public class SettingsJourneyTest extends LauncherTest {
                 "",
                 context.getSharedPreferences(MainActivity.PREFS, 0)
                         .getString(MainActivity.PREF_UNSPLASH, ""));
+    }
+
+    /**
+     * Puts a full set of pictures in the cache, so that showing one asks nothing of the network.
+     *
+     * <p>{@link Pics#WANTED} of them exactly: a cache holding fewer is topped up behind whatever is
+     * on screen, and a test that did not want the network should not quietly start one.
+     */
+    private void seedPictures(String set) throws Exception {
+        File dir = new File(context.getCacheDir(), Pics.cacheDir(set));
+        assertTrue("could not make " + dir, dir.mkdirs() || dir.isDirectory());
+        StringBuilder credits = new StringBuilder();
+        for (int i = 0; i < Pics.WANTED; i++) {
+            String name = Pics.fileName(i);
+            Bitmap shot = Bitmap.createBitmap(320, 180, Bitmap.Config.ARGB_8888);
+            // Not one flat colour: somethingIsDrawn() counts colours, and a
+            // picture this test seeded must look like a picture to it.
+            shot.eraseColor(0xFF102030 + i * 0x0A0A0A);
+            for (int x = 0; x < 320; x++) {
+                shot.setPixel(x, 90, 0xFFFFFFFF);
+            }
+            try (FileOutputStream out = new FileOutputStream(new File(dir, name))) {
+                shot.compress(Bitmap.CompressFormat.JPEG, 90, out);
+            }
+            shot.recycle();
+            credits.append(Pics.creditLine(name, new Pics.Shot("", "Photographer " + i, "a test")))
+                    .append('\n');
+        }
+        try (FileOutputStream out = new FileOutputStream(new File(dir, Pics.CREDITS))) {
+            out.write(credits.toString().getBytes("UTF-8"));
+        }
+    }
+
+    /**
+     * How long the picture screen may stay on "loading" before this counts as broken.
+     *
+     * <p>Deliberately far longer than {@link #TIMEOUT_MS}, which is the wait for a view to appear
+     * and the wrong unit for this. A first tap on an empty cache asks an image service a question
+     * and then downloads ten photographs before any of them is shown: about six seconds on a fast
+     * desk connection, and an unknown multiple of that on a build machine running an emulator in
+     * software. Ten seconds was the wait before, which is to say the test was timing the network
+     * and calling the result a bug.
+     */
+    private static final long PICTURE_MS = 90_000L;
+
+    /**
+     * Waits for the picture screen to settle, and says whether a photograph is what it settled on.
+     *
+     * <p>Both endings are legitimate and which one happens is not the test's business: a machine
+     * with no way out to the network says so in words, and a machine with one draws a photograph
+     * and names the photographer. Only a screen still saying "loading" when the time is up is a
+     * failure, and it fails here rather than further down, where it would be reported as whatever
+     * assertion happened to be next.
+     */
+    private boolean settledOnAPicture() throws Exception {
+        String none = str(R.string.pics_none);
+        long deadline = System.currentTimeMillis() + PICTURE_MS;
+        while (System.currentTimeMillis() < deadline) {
+            if (device.hasObject(By.textContains(" / "))) {
+                return true;
+            }
+            if (device.hasObject(By.text(none))) {
+                return false;
+            }
+            Thread.sleep(250);
+        }
+        fail("the picture screen was still loading after " + PICTURE_MS / 1000 + "s");
+        return false;
     }
 
     /** Whether the screen holds more than one colour, which a drawn photograph always does. */
