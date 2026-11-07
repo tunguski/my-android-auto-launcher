@@ -57,6 +57,8 @@ import android.widget.Toast;
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -1363,6 +1365,15 @@ public class MainActivity extends Activity {
         if (lookView != null) {
             content.removeView(lookView);
         }
+        // A picture is left behind otherwise. Touching one calls this, and the
+        // settings went on top of it rather than in place of it: three pictures
+        // looked at in a row meant three full-screen views still in the tree,
+        // three bitmaps still held, and three photographers' names stacked in
+        // the corner, of which only the oldest was the one being shown.
+        if (picView != null) {
+            content.removeView(picView);
+            picView = null;
+        }
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
         box.setBackgroundColor(BG);
@@ -1589,6 +1600,44 @@ public class MainActivity extends Activity {
         row.addView(flatButton(getString(R.string.pics_lego), () -> showPicture(Pics.LEGO)));
         row.addView(flatButton(getString(R.string.pics_kitty), () -> showPicture(Pics.KITTY)));
         card.addView(row);
+        card.addView(
+                flatButton(
+                        getString(
+                                unsplashKey().isEmpty()
+                                        ? R.string.pics_key_unset
+                                        : R.string.pics_key_set),
+                        this::askUnsplashKey));
+    }
+
+    /**
+     * Asks for an Unsplash access key, and keeps it.
+     *
+     * <p>Typed in rather than compiled in, so that a car running a build from the public source -
+     * which carries no key, because the source is public - can still be given one without being
+     * rebuilt. What is typed is never written to the log or shown again; the button afterwards says
+     * only whether there is a key, not what it is. Emptying the field removes it and the pictures
+     * go back to Openverse, which asks for nothing.
+     */
+    private void askUnsplashKey() {
+        final EditText field = new EditText(this);
+        field.setSingleLine(true);
+        field.setHint(getString(R.string.pics_key_hint));
+        field.setText(prefs.getString(PREF_UNSPLASH, ""));
+
+        new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog)
+                .setTitle(getString(R.string.pics_key_title))
+                .setView(field)
+                .setPositiveButton(
+                        android.R.string.ok,
+                        (d, which) -> {
+                            prefs.edit()
+                                    .putString(PREF_UNSPLASH, field.getText().toString().trim())
+                                    .apply();
+                            d.dismiss();
+                            showLook();
+                        })
+                .setNegativeButton(android.R.string.cancel, (d, which) -> d.dismiss())
+                .show();
     }
 
     /**
@@ -1616,7 +1665,12 @@ public class MainActivity extends Activity {
         notice.setGravity(Gravity.CENTER);
         frame.addView(notice, new FrameLayout.LayoutParams(-1, -1));
 
-        TextView credit = text("", 0.03f, TEXT_DIM);
+        // The ordinary text colour with a shadow under it, rather than the dim
+        // grey used elsewhere: this line sits on a photograph, not on black, and
+        // a credit that disappears into a pale corner is a credit not given. CC
+        // BY asks for the name to be seen, and a photograph can be any colour.
+        TextView credit = text("", 0.03f, TEXT);
+        credit.setShadowLayer(px(0.008f), 0, px(0.002f), 0xCC000000);
         credit.setPadding(px(0.02f), px(0.01f), px(0.02f), px(0.01f));
         FrameLayout.LayoutParams creditLp = new FrameLayout.LayoutParams(-2, -2);
         creditLp.gravity = Gravity.BOTTOM | Gravity.START;
@@ -1630,34 +1684,42 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * Finds a picture and puts it on screen, off the main thread.
+     * Puts a picture on screen, off the main thread, filling the cache if it is empty.
      *
-     * <p>Online first when a key was built in, because the point of a key is to see something the
-     * bundled twenty do not hold; the APK is what answers when there is no key, no signal or no
-     * patience left at the far end. The views are touched only back on the launcher's own thread,
-     * and only if the screen is still the one that asked - a driver who taps away during the wait
-     * must not have a cat land on the settings afterwards.
+     * <p>What is already on disk answers first and answers at once; only an empty cache makes the
+     * screen wait for the network. Once something is showing, a cache holding fewer than {@link
+     * Pics#WANTED} is topped up quietly behind it, so the waiting happens once and never again
+     * until Android reclaims the room.
+     *
+     * <p>The views are touched only back on the launcher's own thread, and only if the screen is
+     * still the one that asked - a driver who taps away during the wait must not have a cat land on
+     * the settings afterwards.
      */
     private void fetchPicture(
             String set, View owner, ImageView shot, TextView notice, TextView credit) {
-        String key = getString(R.string.unsplash_key);
-        boolean online = Pics.preferOnline(key, hasNetwork());
         new Thread(
                         () -> {
-                            Bitmap bitmap = null;
-                            String who = "";
-                            if (online) {
-                                Pics.Shot found = askUnsplash(set, key);
-                                if (found != null) {
-                                    bitmap = download(found.url);
-                                    who = found.who;
-                                }
+                            File dir = cacheFor(set);
+                            String[] names = Pics.pictures(dir.list());
+                            if (names.length == 0) {
+                                fill(set, dir);
+                                names = Pics.pictures(dir.list());
                             }
-                            if (bitmap == null) {
-                                bitmap = fromApk(set);
+                            Bitmap bitmap = null;
+                            String caption = "";
+                            Integer last = lastPicture.get(set);
+                            int at = Pics.pickOther(names.length, last == null ? -1 : last, random);
+                            if (at >= 0) {
+                                lastPicture.put(set, at);
+                                bitmap = decode(readFile(new File(dir, names[at])));
+                                Pics.Credit who =
+                                        Pics.creditFor(
+                                                text(new File(dir, Pics.CREDITS)), names[at]);
+                                caption = who == null ? "" : credit(who.who, who.licence);
                             }
                             final Bitmap drawn = bitmap;
-                            final String credited = who;
+                            final String credited = caption;
+                            final int held = names.length;
                             runOnUiThread(
                                     () -> {
                                         if (picView != owner) {
@@ -1670,13 +1732,102 @@ public class MainActivity extends Activity {
                                         shot.setImageBitmap(drawn);
                                         notice.setVisibility(View.GONE);
                                         if (!credited.isEmpty()) {
-                                            credit.setText(
-                                                    getString(R.string.pics_credit, credited));
+                                            credit.setText(credited);
                                         }
                                     });
+                            if (held > 0 && held < Pics.WANTED) {
+                                // Behind the picture that is already showing.
+                                fill(set, dir);
+                            }
                         },
                         "pic")
                 .start();
+    }
+
+    /**
+     * Fetches pictures until the set holds {@link Pics#WANTED} of them, or until the source runs
+     * out of answers.
+     *
+     * <p>One search for the whole refill rather than one per picture: Openverse allows an anonymous
+     * caller twenty requests a minute, and asking it ten times for one picture each would be both
+     * rude and slower. A dead address is skipped and the next candidate taken - roughly one link in
+     * twenty no longer resolves at the far end - which is why more results are asked for than are
+     * wanted.
+     *
+     * <p>Only one refill of a set runs at a time. Two taps in quick succession on an empty cache
+     * would otherwise fetch everything twice and write over each other's files.
+     */
+    private void fill(String set, File dir) {
+        synchronized (filling) {
+            if (!filling.add(set)) {
+                return;
+            }
+        }
+        try {
+            dir.mkdirs();
+            int have = Pics.pictures(dir.list()).length;
+            if (have >= Pics.WANTED) {
+                return;
+            }
+            List<Pics.Shot> shots = Pics.spread(search(set), Pics.PER_CREATOR);
+            StringBuilder credits = new StringBuilder();
+            for (Pics.Shot found : shots) {
+                if (have >= Pics.WANTED) {
+                    break;
+                }
+                byte[] picture = download(found.url);
+                if (picture == null || picture.length == 0) {
+                    continue; // a dead link at the far end; take the next one
+                }
+                String name = Pics.fileName(have + 1);
+                if (!write(new File(dir, name), picture)) {
+                    continue;
+                }
+                credits.append(Pics.creditLine(name, found)).append('\n');
+                have++;
+            }
+            if (credits.length() > 0) {
+                append(new File(dir, Pics.CREDITS), credits.toString());
+            }
+        } catch (Throwable t) {
+            // A diversion is never worth a crash. Whatever arrived is kept, and
+            // the next tap tries again for the rest.
+        } finally {
+            synchronized (filling) {
+                filling.remove(set);
+            }
+        }
+    }
+
+    /**
+     * Asks a source for a page of pictures.
+     *
+     * <p>Unsplash when there is a key, because it is curated and deep; Openverse otherwise, because
+     * it needs none. Unsplash failing - no signal, a dead key, a quota spent - falls through to
+     * Openverse rather than leaving the screen empty, which is the whole reason there are two.
+     */
+    private List<Pics.Shot> search(String set) {
+        if (!hasNetwork()) {
+            return new ArrayList<>();
+        }
+        String key = unsplashKey();
+        if (Pics.preferUnsplash(key, true)) {
+            List<Pics.Shot> shots =
+                    Pics.fromUnsplash(fetch(Pics.randomUrl(set, key, Pics.WANTED * 2)));
+            if (!shots.isEmpty()) {
+                return shots;
+            }
+        }
+        // A later page each time, so a cache Android emptied does not come back
+        // as the same ten pictures it held before.
+        int page = prefs.getInt(PREF_PAGE + set, 0) + 1;
+        prefs.edit().putInt(PREF_PAGE + set, page).apply();
+        return Pics.fromOpenverse(fetch(Pics.openverseUrl(set, page, Pics.WANTED * 2)));
+    }
+
+    /** The Unsplash key, which only ever comes from the settings on this unit. */
+    private String unsplashKey() {
+        return Pics.key(prefs.getString(PREF_UNSPLASH, ""));
     }
 
     /** Whether anything is likely to answer; a wrong guess costs one wait, not a crash. */
@@ -1689,35 +1840,36 @@ public class MainActivity extends Activity {
         }
     }
 
-    private Pics.Shot askUnsplash(String set, String key) {
+    /** Where a set's pictures are kept: the cache directory, which Android may empty at will. */
+    private File cacheFor(String set) {
+        return new File(getCacheDir(), Pics.cacheDir(set));
+    }
+
+    /** One request, as text, or the empty string. */
+    private String fetch(String url) {
+        byte[] body = download(url);
+        if (body == null) {
+            return "";
+        }
         try {
-            HttpURLConnection c =
-                    (HttpURLConnection) new URL(Pics.randomUrl(set, key.trim())).openConnection();
-            try {
-                c.setConnectTimeout(PIC_TIMEOUT_MS);
-                c.setReadTimeout(PIC_TIMEOUT_MS);
-                if (c.getResponseCode() != 200) {
-                    return null;
-                }
-                return Pics.fromRandom(new String(readAll(c.getInputStream()), "UTF-8"));
-            } finally {
-                c.disconnect();
-            }
+            return new String(body, "UTF-8");
         } catch (Throwable t) {
-            return null;
+            return "";
         }
     }
 
-    private Bitmap download(String url) {
+    /** One request, as bytes, or null. */
+    private byte[] download(String url) {
         try {
             HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
             try {
                 c.setConnectTimeout(PIC_TIMEOUT_MS);
                 c.setReadTimeout(PIC_TIMEOUT_MS);
+                c.setInstanceFollowRedirects(true);
                 if (c.getResponseCode() != 200) {
                     return null;
                 }
-                return decode(readAll(c.getInputStream()));
+                return readAll(c.getInputStream());
             } finally {
                 c.disconnect();
             }
@@ -1726,25 +1878,45 @@ public class MainActivity extends Activity {
         }
     }
 
-    /** One of the pictures that travel inside the APK, or null if this build carries none. */
-    private Bitmap fromApk(String set) {
-        try {
-            String dir = Pics.assetDir(set);
-            String[] names = getAssets().list(dir);
-            if (names == null) {
-                return null;
-            }
-            Integer last = lastPicture.get(set);
-            int at = Pics.pickOther(names.length, last == null ? -1 : last, random);
-            if (at < 0) {
-                return null;
-            }
-            lastPicture.put(set, at);
-            try (InputStream in = getAssets().open(dir + "/" + names[at])) {
-                return decode(readAll(in));
-            }
+    /** "Someone / CC0", in the corner of the picture. */
+    private String credit(String who, String under) {
+        return who == null || who.isEmpty() ? "" : getString(R.string.pics_credit, who, under);
+    }
+
+    private byte[] readFile(File f) {
+        try (InputStream in = new FileInputStream(f)) {
+            return readAll(in);
         } catch (Throwable t) {
             return null;
+        }
+    }
+
+    private String text(File f) {
+        byte[] body = readFile(f);
+        if (body == null) {
+            return null;
+        }
+        try {
+            return new String(body, "UTF-8");
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    private boolean write(File f, byte[] body) {
+        try (FileOutputStream out = new FileOutputStream(f)) {
+            out.write(body);
+            return true;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    private void append(File f, String line) {
+        try (FileOutputStream out = new FileOutputStream(f, true)) {
+            out.write(line.getBytes("UTF-8"));
+        } catch (Throwable t) {
+            // The picture is there; it will simply show without a name.
         }
     }
 
@@ -1786,6 +1958,15 @@ public class MainActivity extends Activity {
 
     private final java.util.Map<String, Integer> lastPicture = new java.util.HashMap<>();
     private final java.util.Random random = new java.util.Random();
+
+    /** The sets whose cache is being filled right now; see {@link #fill}. */
+    private final java.util.Set<String> filling = new java.util.HashSet<>();
+
+    /** Where the Unsplash key typed into the settings is kept. */
+    static final String PREF_UNSPLASH = "unsplash_key";
+
+    /** Which page of Openverse results a set last took, so the next refill takes another. */
+    static final String PREF_PAGE = "pics_page_";
 
     // ───────────────────────────── RECORDING ─────────────────────────────
 

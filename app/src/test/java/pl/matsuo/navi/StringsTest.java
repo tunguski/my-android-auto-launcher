@@ -55,15 +55,6 @@ public class StringsTest {
     private static final Set<String> CONFIG =
             new HashSet<>(Arrays.asList("drive_client_id", "drive_client_secret"));
 
-    /**
-     * Defined by the build rather than by a resource file.
-     *
-     * <p>The Unsplash key for the pictures in the settings is a {@code resValue} in
-     * build.gradle.kts, read from keystore.properties or the environment. It is not in strings.xml,
-     * and must not be: this repository is public.
-     */
-    private static final Set<String> GENERATED = new HashSet<>(Arrays.asList("unsplash_key"));
-
     /** Used from somewhere other than Java code. */
     private static final Set<String> USED_ELSEWHERE = new HashSet<>(Arrays.asList("app_name"));
 
@@ -245,7 +236,6 @@ public class StringsTest {
     public void everyReferencedStringIsDefined() throws IOException {
         Set<String> undefined = new TreeSet<>(referencedKeys());
         undefined.removeAll(strings("values").keySet());
-        undefined.removeAll(GENERATED);
         assertTrue("referenced but not defined: " + undefined, undefined.isEmpty());
     }
 }

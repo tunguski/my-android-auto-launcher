@@ -151,7 +151,11 @@
     <string name="pics_kitty">Kotki</string>
     <string name="pics_note">Losowy obrazek na pełnym ekranie. Dotknij, żeby wrócić.</string>
     <string name="pics_loading">Pobieram obrazek…</string>
-    <string name="pics_none">Ta wersja nie ma obrazków</string>
-    <string name="pics_credit">%1$s / Unsplash</string>
+    <string name="pics_none">Jeszcze nie ma obrazków - brak sieci?</string>
+    <string name="pics_credit">%1$s / %2$s</string>
+    <string name="pics_key_unset">Klucz Unsplash: brak</string>
+    <string name="pics_key_set">Klucz Unsplash: ustawiony</string>
+    <string name="pics_key_title">Klucz dostępowy Unsplash</string>
+    <string name="pics_key_hint">Puste pole oznacza Openverse</string>
 
 </resources>

@@ -283,18 +283,102 @@ public class SettingsJourneyTest extends LauncherTest {
                 "the settings panel is still showing behind the picture",
                 device.wait(Until.gone(By.text(str(R.string.look_title))), TIMEOUT_MS));
 
-        // One of the two honest outcomes, and the test says which. A build made
-        // from the public source carries no Unsplash key, and the pictures are
-        // fetched into the APK by tools/pics.sh rather than committed, so a
-        // clean checkout shows the notice; once they are there, a picture is
-        // drawn and the screen is no longer uniformly black.
-        boolean saidItHasNone = device.hasObject(By.text(str(R.string.pics_none)));
+        // One of the two honest outcomes, and the test says which. Nothing
+        // travels inside the APK any more: the first tap fills a cache from the
+        // network, so a device with no way out says so, and a device with one
+        // draws a photograph and names whoever took it. What must never happen
+        // is a screen that is neither.
+        boolean saidItHasNone =
+                device.wait(Until.hasObject(By.text(str(R.string.pics_none))), TIMEOUT_MS);
         if (!saidItHasNone) {
             assertTrue("neither a picture nor a word about why not", somethingIsDrawn());
+            assertTrue(
+                    "a picture arrived with nobody named beside it",
+                    device.wait(Until.hasObject(By.textContains(" / ")), TIMEOUT_MS));
         }
 
         device.click(device.getDisplayWidth() / 2, device.getDisplayHeight() / 2);
         assertVisible(R.string.look_title);
+    }
+
+    @Test
+    public void lookingAtPicturesDoesNotLeaveThemStackedUpBehind() throws Exception {
+        // Touching a picture goes back to the settings, and the settings used to
+        // be laid on top of the picture rather than in place of it: three
+        // pictures looked at in a row left three full-screen views in the tree,
+        // three bitmaps held, and three photographers' names in the corner, of
+        // which the one being read was the oldest and so the wrong one.
+        open("look");
+        for (int i = 0; i < 3; i++) {
+            scrollTo(R.string.pics_lego).click();
+            device.waitForIdle();
+            device.click(device.getDisplayWidth() / 2, device.getDisplayHeight() / 2);
+            assertVisible(R.string.look_title);
+        }
+        scrollTo(R.string.pics_lego).click();
+        device.waitForIdle();
+
+        // Whatever this device managed to fetch, there is at most one of it.
+        assertTrue(
+                "a picture screen was left behind under the settings",
+                device.findObjects(By.textContains(" / ")).size() <= 1);
+    }
+
+    @Test
+    public void theUnsplashKeyCanBeTypedInAndTakenBackOut() throws Exception {
+        // There is nowhere else a key could come from: it is typed into this
+        // unit or there is none. The button says whether there is one, and
+        // never what it is.
+        //
+        // Started from a known state rather than from whatever the last run
+        // left: this test is the only thing that writes that setting, and a
+        // failure half way through it would otherwise make the next run fail
+        // for a different reason and hide the first one.
+        context.getSharedPreferences(MainActivity.PREFS, 0)
+                .edit()
+                .remove(MainActivity.PREF_UNSPLASH)
+                .commit();
+
+        // Brought up first and asked for the panel second. A cold start reads
+        // the screen extra before the launcher has a screen to put it on and
+        // settles on the black one; every other test here is saved from that
+        // only by whatever ran before it.
+        open(null);
+        open("look");
+        assertVisible(R.string.look_title);
+        scrollTo(R.string.pics_key_unset).click();
+        device.waitForIdle();
+
+        UiObject2 field = waitFor(By.clazz("android.widget.EditText"));
+        assertNotNull("no field to type a key into", field);
+        field.setText("not-a-real-key");
+        device.findObject(By.text("OK")).click();
+        device.waitForIdle();
+        assertVisible(R.string.look_title);
+
+        assertNotNull("the settings still say there is no key", scrollTo(R.string.pics_key_set));
+        assertEquals(
+                "what was typed is not what was kept",
+                "not-a-real-key",
+                context.getSharedPreferences(MainActivity.PREFS, 0)
+                        .getString(MainActivity.PREF_UNSPLASH, ""));
+
+        // And out again: an empty field means Openverse, not a broken key.
+        scrollTo(R.string.pics_key_set).click();
+        device.waitForIdle();
+        field = waitFor(By.clazz("android.widget.EditText"));
+        assertNotNull(field);
+        field.setText("");
+        device.findObject(By.text("OK")).click();
+        device.waitForIdle();
+        assertVisible(R.string.look_title);
+
+        assertNotNull(
+                "clearing the field did not clear the key", scrollTo(R.string.pics_key_unset));
+        assertEquals(
+                "",
+                context.getSharedPreferences(MainActivity.PREFS, 0)
+                        .getString(MainActivity.PREF_UNSPLASH, ""));
     }
 
     /** Whether the screen holds more than one colour, which a drawn photograph always does. */

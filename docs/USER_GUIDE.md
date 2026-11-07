@@ -433,12 +433,27 @@ The only thing in the settings that is not a setting. **Lego SW** and **Kitty**
 each show one random picture, as large as the screen, until you touch it — and a
 touch anywhere brings the settings straight back.
 
-Twenty pictures of each kind travel inside the app, so this works with no network
-at all, parked in a garage. The same picture never comes up twice in a row. If the
-unit is online and this build was made with an Unsplash key, it fetches from the
-whole of Unsplash instead and names the photographer in the corner; if that takes
-too long or fails, it falls back to the ones it already has without saying
-anything.
+**The first tap needs a connection; after that none.** The app carries no
+pictures of its own — the first time you press a button it fetches ten and keeps
+them, and from then on they appear at once, parked in a garage with the aerial
+off. If the first tap finds no network it says so rather than sitting there. The
+same picture never comes up twice in a row.
+
+The name in the bottom left corner is the photographer, and beside it where the
+picture came from.
+
+Pictures come from Openverse, which asks for nothing and needs no setting up.
+You can have better ones: **Unsplash key** under the same two buttons opens a
+field for an access key from
+[unsplash.com/developers](https://unsplash.com/developers), free to create. With
+a key in it, pictures come from Unsplash instead — a far bigger and better
+chosen collection, which matters most for the Lego button. The button only ever
+says whether a key is set, never what it is. Clear the field and it goes back to
+Openverse.
+
+The unit may clear out the kept pictures when it is short of room. Nothing
+breaks; the next tap simply fetches ten more, and they will be ten different
+ones.
 
 It is deliberately here rather than on the black screen. The home row is for
 driving.

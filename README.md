@@ -278,27 +278,44 @@ days.
 ### Pictures
 
 Two buttons at the bottom of the settings, one for Lego Star Wars and one for cats, each
-showing a random picture full screen until it is touched. Twenty of each travel inside the
-APK, under `assets/pics/`, so a car that never sees a network still has something to show.
+showing a random picture full screen until it is touched.
 
-They are fetched once, by hand, with `NAVI_UNSPLASH_KEY=... sh tools/pics.sh`, and the
-result is committed — not fetched during the build. A build that reaches the open internet
-fails when someone else's server does, and four test shards fetching forty photographs each
-would empty an Unsplash demo quota before the tests began. The same reasoning as
-`tools/wx-fixtures.sh`.
+**Nothing travels inside the APK.** The first time a set is asked for, ten pictures are
+fetched and kept in the cache directory; from then on that is what answers — instantly,
+with no network, and with no megabytes carried by every car that never presses the button.
+Android may empty that directory when it wants the room, and the next tap fills it again.
+A cache holding fewer than ten is topped up quietly behind the picture already on screen,
+so the waiting happens once.
 
-With an Unsplash access key compiled in, the buttons go to the network first and fall back
-to the bundled twenty, which is the point of the key: the whole of Unsplash rather than
-forty pictures you will come to know by heart. The key is **not** in this source and must
-not be put in it — this repository is public. It is a `resValue` in `app/build.gradle.kts`,
-read from `unsplashKey` in `keystore.properties` locally or `NAVI_UNSPLASH_KEY` in CI, and
-empty otherwise. Empty means offline, which is a working app, not a broken one.
+Two sources, in this order:
 
-The pictures are used under the [Unsplash License](https://unsplash.com/license), which
-allows them to be copied and redistributed, including inside an application, without
-permission or attribution. `assets/pics/CREDITS.txt` names the photographers anyway, and a
-picture fetched over the network carries its photographer's name in the corner, as the
-Unsplash API terms ask.
+- **Unsplash**, when there is an access key. Curated and deep, and the only one of the two
+  that has real breadth for Lego Star Wars.
+- **[Openverse](https://api.openverse.org)**, when there is not — or when Unsplash fails.
+  No key at all. Asked for `license=cc0` alone, so everything it returns may be shown and
+  kept with no condition whatsoever. It aggregates 52 providers; the CC0 slice of Flickr,
+  StockSnap and Rawpixel is where most of the good ones come from.
+
+The key is **typed into the settings on the unit**, and there is deliberately no other way
+to give one. It is not in this repository, which is public, and it is not compiled into the
+build either: a `resValue` would carry the key inside every copy of the APK, in plain sight
+of anyone who unzips one, which is no better than committing it. `Pictures → Unsplash key`
+opens a field; the button afterwards says only whether there is a key, never what it is,
+and emptying the field goes back to Openverse.
+
+Three things the filtering is careful about. Openverse's own `size=large` cut the Lego
+results from eighty-six to eleven, which is too few to fill a cache from, so width is
+judged here instead — under 1000 px is dropped, anything above it looks right on a 1280
+wide screen. Roughly one address in twenty no longer resolves at the far end, so twice as
+many results are asked for as are wanted and dead links are simply skipped. And the
+results are spread across photographers before they are taken: the first answer for Lego
+Star Wars was nine pictures out of ten by one person, which is one picture wearing ten
+hats. Nothing is discarded — a thin answer must still be able to fill ten — but everyone
+gets a turn before anyone gets a fifth.
+
+The photographer is named in the corner of the picture. CC0 does not ask for it; the
+Unsplash API terms do, and the people who took them deserve it either way. The name
+travels with the picture in a `credits.txt` beside it in the cache.
 
 `targetSdk` is deliberately 34, not 35, to avoid Android 15's forced edge-to-edge layout.
 

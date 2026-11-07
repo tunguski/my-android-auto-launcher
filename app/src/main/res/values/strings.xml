@@ -176,8 +176,12 @@
     <string name="pics_kitty">Kitty</string>
     <string name="pics_note">A random picture, full screen. Touch it to come back.</string>
     <string name="pics_loading">Fetching a picture…</string>
-    <string name="pics_none">No pictures in this build</string>
-    <string name="pics_credit">%1$s / Unsplash</string>
+    <string name="pics_none">No pictures yet - no network?</string>
+    <string name="pics_credit">%1$s / %2$s</string>
+    <string name="pics_key_unset">Unsplash key: not set</string>
+    <string name="pics_key_set">Unsplash key: set</string>
+    <string name="pics_key_title">Unsplash access key</string>
+    <string name="pics_key_hint">Leave empty to use Openverse</string>
 
     <!-- Google OAuth client, empty in the public source; see docs/DESIGN_STORAGE.md -->
     <string name="drive_client_id" translatable="false"></string>
