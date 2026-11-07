@@ -17,6 +17,13 @@ set -u
 filter=$1
 status=0
 
+# A crash or ANR dialog from any app on the device takes the focus and keeps it,
+# and then every test in the shard reports only that the launcher never came up.
+# The tests ask for this themselves before each one of them; it is asked here as
+# well, because a dialog raised while the two APKs are being installed would be
+# in front before the first test could ask.
+adb shell settings put global hide_error_dialogs 1 || true
+
 ./gradlew --no-daemon connectedDebugAndroidTest \
     -Pandroid.testInstrumentationRunnerArguments.$filter || status=$?
 

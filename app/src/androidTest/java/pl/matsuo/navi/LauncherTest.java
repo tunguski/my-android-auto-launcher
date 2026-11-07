@@ -61,6 +61,17 @@ public abstract class LauncherTest {
         // Android shows a one-time "Viewing full screen" card the first time an
         // app hides the system bars. It would land in the middle of a screenshot.
         shell("settings put secure immersive_mode_confirmations confirmed");
+        // A crash or ANR dialog raised by any app on the device takes the focus
+        // and keeps it, and then every selector finds "android" rather than the
+        // launcher. One of them - the stock launcher failing to respond on a
+        // loaded runner - turned a single system event into twenty red tests
+        // across two classes in one shard, every one of them reporting that the
+        // launcher never came up while the launcher was in fact drawn, focused
+        // and behind the dialog. It also decided which shard went red, so the
+        // same commit failed differently on every run. The device is asked not
+        // to show them at all; shard.sh asks the same before the run, for
+        // anything raised while the APKs are still being installed.
+        shell("settings put global hide_error_dialogs 1");
         shell("cmd package set-home-activity " + ACTIVITY);
         copyWeatherFixtures();
     }
@@ -257,6 +268,19 @@ public abstract class LauncherTest {
             for (String line : shell("dumpsys window").split("\n")) {
                 if (line.contains("mCurrentFocus") || line.contains("mFocusedApp")) {
                     sb.append("\n").append(line.trim());
+                    // Said outright rather than left to be inferred from the
+                    // window title. A dialog in front is not this test failing:
+                    // it is the device, it affects every test that follows, and
+                    // reading twenty identical "did not come up" messages
+                    // without noticing they share one window is exactly the
+                    // mistake this line exists to prevent.
+                    if (line.contains("Not Responding") || line.contains("Application Error")) {
+                        sb.append(
+                                "\n"
+                                    + "  ^ a system dialog holds the focus. Nothing below is about"
+                                    + " the screen under test, and every later test in this class"
+                                    + " will fail the same way until it is dismissed.");
+                    }
                 }
             }
             String crash = shell("logcat -d -b crash -t 40").trim();
