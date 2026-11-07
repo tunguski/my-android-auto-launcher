@@ -182,16 +182,49 @@ public class TripJourneyTest extends LauncherTest {
     @Test
     public void theDatabaseIsSmallerThanTheFilesItReplaced() throws Exception {
         installTripHistory();
-        Trip.closeCurrent(TripDb.of(context));
 
-        // The write-ahead log counts: space hidden there is space used.
+        // What is being weighed is three drives, so three drives is what must be
+        // in there. The database is deleted before every test in this class, but
+        // the recorder is told to stop in the same breath and does not stop
+        // instantly; a delete that loses to an open connection would leave this
+        // weighing every drive the class had installed before it and reporting
+        // the result as SQLite being wasteful. Checked first, and separately, so
+        // that a dirty database says so in those words.
+        TripDb db = TripDb.of(context);
+        assertEquals("the database was not emptied before this test", 3, db.count());
+
+        Trip.closeCurrent(db);
+
+        // Measured with nothing holding the database open, which is the only way
+        // this number means what the test says it means. Closing a drive ends by
+        // folding the write-ahead log back into the file, but that fold is a
+        // checkpoint, and a checkpoint cannot truncate the log while another
+        // connection is still reading. Whether one is - the recorder winding down from
+        // the test before this one, say - is a matter of milliseconds, not of how
+        // much is stored: on this desk the fold happened and the test passed,
+        // while the build machine measured four hundred and seventy kilobytes and
+        // called it a database nine times too big. SQLite checkpoints and deletes
+        // the log when the last connection goes, so letting it go first measures
+        // the data rather than the timing.
+        TripDb.resetForTests();
+
+        // The log is counted even so: if it somehow survives, space hidden there
+        // is still space used, and this must fail rather than look thrifty.
         File file = context.getDatabasePath(TripDb.NAME);
         File wal = new File(file.getParentFile(), TripDb.NAME + "-wal");
         long used = file.length() + (wal.exists() ? wal.length() : 0);
 
         assertTrue("the database is empty", file.length() > 0);
         assertTrue(
-                "storage grew: " + used + " bytes against " + AS_CSV_ON_DISK + " as CSV files",
+                "storage grew: "
+                        + used
+                        + " bytes ("
+                        + file.length()
+                        + " in the file, "
+                        + (wal.exists() ? wal.length() : 0)
+                        + " still in the log) against "
+                        + AS_CSV_ON_DISK
+                        + " as CSV files",
                 used < AS_CSV_ON_DISK);
     }
 
