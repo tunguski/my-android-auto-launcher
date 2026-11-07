@@ -136,13 +136,15 @@ public class StartupJourneyTest extends LauncherTest {
         String on = str(R.string.record_boot_home, str(R.string.look_on));
         String off = str(R.string.record_boot_home, str(R.string.look_off));
 
-        scrollToText(on).click();
-        device.waitForIdle();
+        // The label is waited for, not the stored setting. The switch writes the
+        // setting and then rebuilds the panel, so "off" on screen means the
+        // handler has run - and the setting is then there to be read rather
+        // than hoped for.
+        tapUntilLabelChanges(on, off);
         assertEquals(false, prefs.getBoolean(BootReceiver.PREF_BOOT_HOME, true));
 
         open("look");
-        scrollToText(off).click();
-        device.waitForIdle();
+        tapUntilLabelChanges(off, on);
         assertEquals(true, prefs.getBoolean(BootReceiver.PREF_BOOT_HOME, false));
     }
 

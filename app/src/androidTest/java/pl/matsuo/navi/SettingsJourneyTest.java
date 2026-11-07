@@ -491,16 +491,6 @@ public class SettingsJourneyTest extends LauncherTest {
      * to ask for one never landed and the settings are still up - is the whole question, and a
      * screen read at the moment of failure answers it without a second run.
      */
-    private String whatIsOnScreen() {
-        StringBuilder seen = new StringBuilder();
-        for (UiObject2 view : device.findObjects(By.clazz("android.widget.TextView"))) {
-            String said = view.getText();
-            if (said != null && !said.trim().isEmpty()) {
-                seen.append('[').append(said.trim()).append(']');
-            }
-        }
-        return seen.length() == 0 ? "nothing with any text in it" : seen.toString();
-    }
 
     /** Whether the screen holds more than one colour, which a drawn photograph always does. */
     private boolean somethingIsDrawn() {

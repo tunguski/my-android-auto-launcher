@@ -3,6 +3,7 @@ package pl.matsuo.navi;
 import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentation;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import android.content.Context;
 import android.content.res.Configuration;
@@ -463,6 +464,50 @@ public abstract class LauncherTest {
     void tapText(int res) {
         waitForText(res).click();
         device.waitForIdle();
+    }
+
+    /**
+     * Taps a row of the settings panel and waits for the label it is meant to turn into.
+     *
+     * <p>Every switch in that panel stores its setting and then builds the panel again from the
+     * top, so the new label is the tap's own receipt: if it has not appeared, the tap did not land,
+     * or the handler behind it has not run yet. It can fail to land for an ordinary reason — a
+     * scroll that has not quite stopped moving puts the row elsewhere by the time the finger
+     * arrives — so it is tried again rather than given up on.
+     *
+     * <p>What this replaces was a tap, {@code waitForIdle} and an immediate read of the stored
+     * setting. That asks whether the handler has run yet, and {@code waitForIdle} returns on a
+     * quiet accessibility stream rather than on work finished, so on a warm machine the answer was
+     * yes and on a cold one it was no. It passed here for days and failed in CI, which is the whole
+     * shape of the problem: an outcome waited for without checking that anything was ever asked
+     * for.
+     */
+    void tapUntilLabelChanges(String tapThis, String expectThis) {
+        for (int attempt = 0; attempt < 3; attempt++) {
+            scrollToText(tapThis).click();
+            if (device.wait(Until.hasObject(By.text(expectThis)), TIMEOUT_MS)) {
+                return;
+            }
+        }
+        fail(
+                "tapped \""
+                        + tapThis
+                        + "\" three times and it never became \""
+                        + expectThis
+                        + "\"; what was on screen: "
+                        + whatIsOnScreen());
+    }
+
+    /** Every piece of text on screen, for a failure that has to say what it was looking at. */
+    String whatIsOnScreen() {
+        StringBuilder seen = new StringBuilder();
+        for (UiObject2 view : allText()) {
+            String said = view.getText();
+            if (said != null && !said.trim().isEmpty()) {
+                seen.append('[').append(said.trim()).append(']');
+            }
+        }
+        return seen.length() == 0 ? "nothing with any text in it" : seen.toString();
     }
 
     /** Every piece of text currently on screen, for the looser assertions. */
