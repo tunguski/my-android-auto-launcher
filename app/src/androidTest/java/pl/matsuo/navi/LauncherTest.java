@@ -25,6 +25,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.BooleanSupplier;
 import org.junit.Before;
 
 /**
@@ -483,19 +484,37 @@ public abstract class LauncherTest {
      * for.
      */
     void tapUntilLabelChanges(String tapThis, String expectThis) {
+        tapUntil(
+                "\"" + tapThis + "\" should have become \"" + expectThis + "\"",
+                () -> scrollToText(tapThis).click(),
+                () -> device.hasObject(By.text(expectThis)));
+    }
+
+    /**
+     * Taps something and waits for what it is meant to produce, trying again if nothing happens.
+     *
+     * <p>For the controls whose effect is not a piece of text: the recording rate is a row of
+     * buttons where the chosen one is a brighter grey, and UiAutomator cannot read a colour. The
+     * only observable is the stored setting, so that is what is waited for - but waited for, not
+     * read once, and the tap is repeated rather than believed.
+     *
+     * <p>This exists because I claimed the suite had only one tap-then-read-state in it, having
+     * searched for {@code prefs.get} rather than for the behaviour. The second one read its setting
+     * through a helper method and the search walked straight past it. Both now go through here, and
+     * so does anything added later.
+     */
+    void tapUntil(String what, Runnable tap, BooleanSupplier until) {
         for (int attempt = 0; attempt < 3; attempt++) {
-            scrollToText(tapThis).click();
-            if (device.wait(Until.hasObject(By.text(expectThis)), TIMEOUT_MS)) {
-                return;
+            tap.run();
+            long deadline = System.currentTimeMillis() + TIMEOUT_MS;
+            while (System.currentTimeMillis() < deadline) {
+                if (until.getAsBoolean()) {
+                    return;
+                }
+                SystemClock.sleep(100);
             }
         }
-        fail(
-                "tapped \""
-                        + tapThis
-                        + "\" three times and it never became \""
-                        + expectThis
-                        + "\"; what was on screen: "
-                        + whatIsOnScreen());
+        fail(what + ", and three taps did not do it; what was on screen: " + whatIsOnScreen());
     }
 
     /** Every piece of text on screen, for a failure that has to say what it was looking at. */

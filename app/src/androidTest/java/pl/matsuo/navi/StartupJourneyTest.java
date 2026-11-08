@@ -105,7 +105,14 @@ public class StartupJourneyTest extends LauncherTest {
     public void theRateCanBeChangedFromTheSettings() throws Exception {
         open("look");
         scrollTo(R.string.record_section);
-        tapAfterScroll(R.string.record_seconds, 3);
+        // The chosen rate is marked by a brighter grey, which UiAutomator cannot
+        // read, so the stored setting is the only receipt the tap has. Waited
+        // for rather than read: reading it immediately asks whether the handler
+        // has run, and on a cold device the answer is no.
+        tapUntil(
+                "the recording rate should have become 3 s",
+                () -> tapAfterScroll(R.string.record_seconds, 3),
+                () -> TripService.intervalMillis(prefs) == 3000);
 
         assertEquals(3000, TripService.intervalMillis(prefs));
 

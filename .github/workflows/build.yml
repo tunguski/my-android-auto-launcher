@@ -79,30 +79,18 @@ jobs:
       # shard. Booting an emulator costs about two and a half minutes whatever
       # it then runs, so four shards is where the gain flattens out.
       #
-      # Split by class, not with the runner's own numShards. That shards by
-      # method, by hash, so methods of different classes interleave in one
-      # process - and TripDbTest stops the recording service in its setup,
-      # because it drives the recorder's static fields directly. Interleaved,
-      # it pulls the service out from under the journey tests that depend on
-      # it. Measured: numShards=4 failed six tests that pass in one run.
-      #
-      # The last shard is defined by what it is not, so a new test class lands
-      # in it automatically rather than silently never running.
+      # Which classes each number means is in tools/shard.sh and nowhere else.
+      # It used to be written out here as well, which meant the list existed
+      # twice and tools/ci-local.sh - the script whose whole purpose is to run
+      # what CI runs - had to be told it a third time. A number is also the one
+      # thing that survives being handed to two shells in a row, which is what
+      # the action does with the script line below.
       #
       # fail-fast off on purpose: a failing shard must not cancel the others,
       # or the run throws away the three reports that say what still works.
       fail-fast: false
       matrix:
-        include:
-          - shard: 0
-            filter: class=pl.matsuo.navi.HomeJourneyTest,pl.matsuo.navi.TripJourneyTest
-          - shard: 1
-            filter: class=pl.matsuo.navi.RecordingJourneyTest,pl.matsuo.navi.StartupJourneyTest
-          - shard: 2
-            filter: class=pl.matsuo.navi.BackupJourneyTest,pl.matsuo.navi.SettingsJourneyTest
-          - shard: 3
-            filter: >-
-              notClass=pl.matsuo.navi.HomeJourneyTest,pl.matsuo.navi.TripJourneyTest,pl.matsuo.navi.RecordingJourneyTest,pl.matsuo.navi.StartupJourneyTest,pl.matsuo.navi.BackupJourneyTest,pl.matsuo.navi.SettingsJourneyTest
+        shard: [0, 1, 2, 3]
     steps:
       - uses: actions/checkout@v4
 
@@ -138,11 +126,12 @@ jobs:
             -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
             -camera-back none -camera-front none -skin 1280x720
           disable-animations: true
-          # One line on purpose: this string is wrapped and handed to a shell by
-          # the action, so anything clever in it - a dollar sign above all - is
-          # at the mercy of two levels of expansion. The work, and the device
-          # log it keeps, live in tools/shard.sh, which can be read and run.
-          script: sh tools/shard.sh ${{ matrix.filter }}
+          # A path and a digit on purpose: this string is wrapped and handed to
+          # a shell by the action, so anything clever in it - a dollar sign
+          # above all - is at the mercy of two levels of expansion. The work,
+          # the shard division, the annotations naming what failed and the
+          # device log all live in tools/shard.sh, which can be read and run.
+          script: sh tools/shard.sh ${{ matrix.shard }}
 
       # One name per shard, or the four uploads would fight over one artifact.
       - uses: actions/upload-artifact@v4
