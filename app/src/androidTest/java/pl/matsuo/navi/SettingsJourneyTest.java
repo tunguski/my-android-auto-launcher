@@ -2,10 +2,12 @@ package pl.matsuo.navi;
 
 import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentation;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.Rect;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -127,6 +129,52 @@ public class SettingsJourneyTest extends LauncherTest {
             device.waitForIdle();
             assertNotNull(waitFor(By.text(on)));
         }
+    }
+
+    @Test
+    public void followingTheSunIsOfferedAndIsOnToBeginWith() throws Exception {
+        // On by default, so a unit nobody configures still dims itself at dusk.
+        // Started from a cleared setting rather than from whatever the previous
+        // test left, because the default is the thing being asserted.
+        context.getSharedPreferences(MainActivity.PREFS, 0)
+                .edit()
+                .remove(MainActivity.PREF_AUTO_NIGHT)
+                .commit();
+        open(null);
+        open("look");
+
+        String on = str(R.string.look_autonight, str(R.string.look_on));
+        String off = str(R.string.look_autonight, str(R.string.look_off));
+        assertNotNull("following the sun is not on by default", scrollToText(on));
+        tapUntilLabelChanges(on, off);
+        tapUntilLabelChanges(off, on);
+    }
+
+    @Test
+    public void aReadingWithoutSunTimesLeavesTheScreenAlone() throws Exception {
+        // The canned readings carry no sunrise or sunset - they were written to
+        // pin a weather screen, not a sky - so this is also every screen test's
+        // own situation. If the automatic switch guessed instead of standing
+        // still, it would dim the screen out from under all of them, and the
+        // failures would land anywhere but here.
+        SharedPreferences prefs = context.getSharedPreferences(MainActivity.PREFS, 0);
+        prefs.edit()
+                .putBoolean(MainActivity.PREF_AUTO_NIGHT, true)
+                .putBoolean("dim", false)
+                .remove(MainActivity.PREF_DIM_BY_HAND)
+                .putLong(MainActivity.PREF_WEATHER_AT, System.currentTimeMillis())
+                .commit();
+
+        open("home", MainActivity.EXTRA_WEATHER, "all");
+        open("look");
+        assertVisible(R.string.look_title);
+
+        assertFalse(
+                "a reading with no sun times dimmed the screen anyway",
+                prefs.getBoolean("dim", false));
+        assertNotNull(
+                "the night dimming no longer says it is off",
+                scrollToText(str(R.string.look_night, str(R.string.look_off))));
     }
 
     @Test

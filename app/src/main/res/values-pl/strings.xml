@@ -16,6 +16,8 @@
     <string name="look_brightness_note">Tylko napisy i ikony; tło zawsze pozostaje czarne</string>
     <string name="look_night">Nocne przyciemnienie:  %1$s</string>
     <string name="look_night_note">Albo dotknij zegara na ekranie głównym</string>
+    <string name="look_autonight">Podążaj za słońcem:  %1$s</string>
+    <string name="look_autonight_note">Przyciemnia o zachodzie i rozjaśnia o wschodzie, na podstawie ostatniego odczytu pogody. Dotknięcie zegara obowiązuje do najbliższego wschodu lub zachodu.</string>
     <string name="look_on">WŁ.</string>
     <string name="look_off">WYŁ.</string>
     <string name="look_language">Język</string>

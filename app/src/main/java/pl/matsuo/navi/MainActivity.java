@@ -219,6 +219,10 @@ public class MainActivity extends Activity {
                 lastWeather = new JSONObject(cached);
                 placeName = prefs.getString("place", "");
                 showTemp();
+                // Before the first fetch of this run has a chance to answer: a
+                // unit switched on at dusk should come up dimmed, not come up
+                // bright and correct itself once the network does.
+                applyAutoNight();
             }
         } catch (Exception ignored) {
             // A damaged cache is simply ignored; the next fetch replaces it.
@@ -252,6 +256,9 @@ public class MainActivity extends Activity {
         super.onResume();
         hideBars();
         refreshLocationAndWeather();
+        // From what is already stored, without waiting for the fetch above to
+        // come back - and again when it does.
+        applyAutoNight();
         updateStats();
         ui.removeCallbacks(periodic);
         ui.postDelayed(periodic, REFRESH_MS);
@@ -277,6 +284,11 @@ public class MainActivity extends Activity {
                 @Override
                 public void run() {
                     refreshLocationAndWeather();
+                    // Every three minutes, which is what makes the crossing
+                    // land within three minutes of the sun itself. Offline it
+                    // still runs, off the stored reading, until that reading is
+                    // a week old.
+                    applyAutoNight();
                     ui.postDelayed(this, REFRESH_MS);
                 }
             };
@@ -531,12 +543,9 @@ public class MainActivity extends Activity {
         clockCol.addView(date);
         top.addView(clockCol);
 
-        // Tapping the clock toggles the extra night dimming.
-        clockCol.setOnClickListener(
-                v -> {
-                    prefs.edit().putBoolean("dim", !prefs.getBoolean("dim", false)).apply();
-                    applyNightDim();
-                });
+        // Tapping the clock toggles the extra night dimming, and that choice
+        // stands against the automatic switch until the sun next crosses.
+        clockCol.setOnClickListener(v -> toggleNightDimByHand());
         // Holding the clock opens the layout settings.
         clockCol.setOnLongClickListener(
                 v -> {
@@ -655,6 +664,66 @@ public class MainActivity extends Activity {
         d.setCornerRadius(H * 0.03f);
         d.setStroke(Math.max(1, px(0.003f)), TILE_EDGE);
         return d;
+    }
+
+    /** Whether the screen follows the sun by itself. On unless it has been turned off. */
+    static final String PREF_AUTO_NIGHT = "autonight";
+
+    /** When the night dimming was last set by hand, so that the choice can be left standing. */
+    static final String PREF_DIM_BY_HAND = "dim_by_hand";
+
+    /** When the last weather reading that actually arrived did so. */
+    static final String PREF_WEATHER_AT = "weather_at";
+
+    /**
+     * Sets the night dimming from the sun, unless the driver has had their say more recently.
+     *
+     * <p>Only ever from stored sun times, never from a clock alone: dusk is two hours apart between
+     * June and December at this latitude, and a fixed hour would be wrong for most of the year.
+     * When the reading carries no sun times, or is too old to trust, nothing happens at all and the
+     * screen stays however it was last set - which is also what every canned reading the tests pin
+     * screens with produces, so a test's screen is never dimmed out from under it.
+     *
+     * <p>A tap on the clock wins until the sun next crosses. Without that it would be undone within
+     * three minutes by the periodic refresh, which is the whole reason the time of the tap is
+     * recorded rather than just its outcome: the question is not whether the driver disagreed, but
+     * whether anything has changed since they did.
+     */
+    private void applyAutoNight() {
+        if (!prefs.getBoolean(PREF_AUTO_NIGHT, true) || lastWeather == null) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        if (Sun.tooOldToUse(prefs.getLong(PREF_WEATHER_AT, 0L), now)) {
+            return;
+        }
+        Sun.Phase phase = Sun.phase(lastWeather, now);
+        if (phase == Sun.Phase.UNKNOWN) {
+            return;
+        }
+        if (Sun.lastChangeAtOrBefore(lastWeather, now) <= prefs.getLong(PREF_DIM_BY_HAND, 0L)) {
+            return;
+        }
+        boolean night = phase == Sun.Phase.NIGHT;
+        if (night != prefs.getBoolean("dim", false)) {
+            prefs.edit().putBoolean("dim", night).apply();
+            applyNightDim();
+        }
+    }
+
+    /**
+     * Turns the night dimming over by hand, and remembers when.
+     *
+     * <p>Both ways of doing it - the clock on the home screen and the button in the settings - go
+     * through here, so that neither can be the one that forgets to stop the automatic switch from
+     * answering back.
+     */
+    private void toggleNightDimByHand() {
+        prefs.edit()
+                .putBoolean("dim", !prefs.getBoolean("dim", false))
+                .putLong(PREF_DIM_BY_HAND, System.currentTimeMillis())
+                .apply();
+        applyNightDim();
     }
 
     /** Dims only text and icons; the background stays pure black (#000). */
@@ -1544,12 +1613,38 @@ public class MainActivity extends Activity {
         dimBtn.setBackground(tileBg());
         dimBtn.setOnClickListener(
                 v -> {
-                    prefs.edit().putBoolean("dim", !prefs.getBoolean("dim", false)).apply();
-                    applyNightDim();
+                    toggleNightDimByHand();
                     showLook();
                 });
         card.addView(dimBtn, new LinearLayout.LayoutParams(-2, -2));
         card.addView(settingNote(getString(R.string.look_night_note)), marginTop(px(0.01f)));
+
+        settingGap(card);
+        boolean auto = prefs.getBoolean(PREF_AUTO_NIGHT, true);
+        TextView autoBtn = new TextView(this);
+        autoBtn.setText(
+                getString(
+                        R.string.look_autonight,
+                        getString(auto ? R.string.look_on : R.string.look_off)));
+        autoBtn.setTextColor(TEXT);
+        autoBtn.setTextSize(TypedValue.COMPLEX_UNIT_PX, H * 0.045f);
+        autoBtn.setPadding(px(0.035f), px(0.025f), px(0.035f), px(0.025f));
+        autoBtn.setBackground(tileBg());
+        autoBtn.setOnClickListener(
+                v -> {
+                    // Turning it on hands the screen back to the sun at once,
+                    // rather than at the next refresh: the driver has just said
+                    // so, so the tap that said it must not also count as the
+                    // manual choice that holds the sun off.
+                    prefs.edit()
+                            .putBoolean(PREF_AUTO_NIGHT, !prefs.getBoolean(PREF_AUTO_NIGHT, true))
+                            .remove(PREF_DIM_BY_HAND)
+                            .apply();
+                    applyAutoNight();
+                    showLook();
+                });
+        card.addView(autoBtn, new LinearLayout.LayoutParams(-2, -2));
+        card.addView(settingNote(getString(R.string.look_autonight_note)), marginTop(px(0.01f)));
 
         settingGap(card);
         card.addView(settingLabel(getString(R.string.look_language)));
@@ -2850,7 +2945,7 @@ public class MainActivity extends Activity {
                                                     + "&hourly=temperature_2m,weather_code,precipitation_probability,"
                                                     + "wind_gusts_10m,visibility,snowfall"
                                                     + "&daily=weather_code,temperature_2m_max,temperature_2m_min,"
-                                                    + "precipitation_probability_max"
+                                                    + "precipitation_probability_max,sunrise,sunset"
                                                     + "&timezone=auto&forecast_days=6",
                                                 lat,
                                                 lon);
@@ -2887,15 +2982,23 @@ public class MainActivity extends Activity {
                                     // The place name is not critical.
                                 }
                                 final String fp = place;
+                                // The time of the last reading that actually
+                                // arrived, which is what decides whether the sun
+                                // times in it may still be switched by. A failed
+                                // fetch falls through to the catch below and
+                                // leaves this alone, so a unit that has been out
+                                // of range for a week knows that it has.
                                 prefs.edit()
                                         .putString("weather", j.toString())
                                         .putString("place", fp)
+                                        .putLong(PREF_WEATHER_AT, System.currentTimeMillis())
                                         .apply();
                                 ui.post(
                                         () -> {
                                             lastWeather = j;
                                             placeName = fp;
                                             showTemp();
+                                            applyAutoNight();
                                         });
                             } catch (Exception e) {
                                 // Offline: the last stored reading stays on screen.

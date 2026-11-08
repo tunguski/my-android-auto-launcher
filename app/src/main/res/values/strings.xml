@@ -27,6 +27,8 @@
     <string name="look_brightness_note">Text and icons only; the background is always black</string>
     <string name="look_night">Night dimming:  %1$s</string>
     <string name="look_night_note">Or tap the clock on the home screen</string>
+    <string name="look_autonight">Follow the sun:  %1$s</string>
+    <string name="look_autonight_note">Dims at sunset and brightens at sunrise, using the last weather reading. A tap on the clock stands until the next sunrise or sunset.</string>
     <string name="look_on">ON</string>
     <string name="look_off">OFF</string>
     <string name="look_language">Language</string>
