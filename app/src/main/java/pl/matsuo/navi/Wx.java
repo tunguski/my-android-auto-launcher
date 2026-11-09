@@ -30,6 +30,29 @@ final class Wx {
     /** How far ahead a warning looks. */
     static final int LOOKAHEAD_H = 3;
 
+    /**
+     * How old a reading may be and still be shown as the weather.
+     *
+     * <p>Deliberately far shorter than the week {@link Sun#USABLE_FOR_MS} allows, and the two are
+     * not in conflict: sunrise moves by a couple of minutes a day, so a week-old reading still says
+     * when it gets dark, while a temperature from this morning says nothing about now and a gale
+     * warning from this morning is worse than nothing - a driver who reads it decides something
+     * about a road on evidence that has expired.
+     */
+    static final long STALE_AFTER_MS = 3 * 60 * 60 * 1000L;
+
+    /**
+     * Whether a reading is too old to be shown.
+     *
+     * <p>A reading with no recorded time counts as too old, which is what an install upgraded from
+     * a version that stored no timestamp looks like. It costs that install one dash on the home
+     * screen until the first fetch of the run, three minutes at the outside, and the alternative is
+     * presenting a reading of unknown age as the weather outside.
+     */
+    static boolean isStale(long fetchedAt, long now) {
+        return fetchedAt <= 0 || now - fetchedAt >= STALE_AFTER_MS;
+    }
+
     private Wx() {}
 
     /** Freezing drizzle and freezing rain. */

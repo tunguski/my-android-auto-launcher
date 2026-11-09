@@ -43,6 +43,7 @@
     <!-- Weather screen -->
     <string name="weather_title">Weather</string>
     <string name="weather_loading">Fetching forecast…</string>
+    <string name="weather_offline">No connection for over three hours, so there is nothing current to show. The forecast comes back as soon as the unit is online again.</string>
     <string name="weather_no_location">No location yet. Allow this app to use location\n(Settings → Apps → Navi simple → Permissions).</string>
     <string name="weather_error">Weather data error</string>
     <string name="weather_feels">Feels like %1$d°   ·   Wind %2$d km/h</string>

@@ -309,4 +309,37 @@ public class WxTest {
                 1,
                 Wx.nextHourIndex(t, "2026-11-06T08:00"));
     }
+
+    // ───────────────────────── how old is too old to show ─────────────────────────
+
+    private static final long HOUR_MS = 60 * 60 * 1000L;
+
+    @Test
+    public void aReadingIsShownForThreeHoursAndNoLonger() {
+        long now = 1_762_000_000_000L;
+        assertFalse(Wx.isStale(now, now));
+        assertFalse(Wx.isStale(now - 2 * HOUR_MS, now));
+        assertFalse(Wx.isStale(now - 3 * HOUR_MS + 1000L, now));
+        assertTrue(Wx.isStale(now - 3 * HOUR_MS, now));
+        assertTrue(Wx.isStale(now - 9 * HOUR_MS, now));
+    }
+
+    @Test
+    public void aReadingOfUnknownAgeIsTooOldToShow() {
+        // An install upgraded from a version that stored no timestamp. The cost
+        // is one dash until the first fetch of the run; the alternative is
+        // presenting a reading of any age as the weather outside.
+        long now = 1_762_000_000_000L;
+        assertTrue(Wx.isStale(0L, now));
+        assertTrue(Wx.isStale(-1L, now));
+    }
+
+    @Test
+    public void showingIsStricterThanTheSunIsByAWideMargin() {
+        // The two thresholds answer different questions and must not be made
+        // to match: a week-old reading still says when it gets dark, and says
+        // nothing whatever about the temperature or a gale.
+        assertTrue(Wx.STALE_AFTER_MS < Sun.USABLE_FOR_MS);
+        assertEquals(3 * HOUR_MS, Wx.STALE_AFTER_MS);
+    }
 }

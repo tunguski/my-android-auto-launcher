@@ -177,6 +177,33 @@ public class TripJourneyTest extends LauncherTest {
     }
 
     @Test
+    public void theTimeOfDayIsInTheTopRightCorner() throws Exception {
+        // Asserted by where it is, not merely that it exists, because the figure
+        // for how long the drive has taken is formatted "4:35" once it passes an
+        // hour - so a search for a clock face finds two things on this screen
+        // and only its position tells them apart. Which is also the request:
+        // the corner is the point, a driver glancing down knows where to look.
+        installTripHistory();
+        open("trip");
+        assertVisible(R.string.stats_title);
+
+        UiObject2 corner = null;
+        for (UiObject2 found : device.findObjects(By.text(Pattern.compile("\\d{1,2}:\\d{2}")))) {
+            Rect at = found.getVisibleBounds();
+            if (at.centerX() > device.getDisplayWidth() / 2
+                    && at.top < device.getDisplayHeight() / 5) {
+                corner = found;
+            }
+        }
+        assertTrue(
+                "nothing that looks like a clock is in the top right of the trip screen",
+                corner != null);
+        assertTrue(
+                "the clock is not against the right edge: " + corner.getVisibleBounds(),
+                corner.getVisibleBounds().right > device.getDisplayWidth() * 0.85);
+    }
+
+    @Test
     public void backFromTheTripScreenReturnsToTheBlackScreen() throws Exception {
         open("trip");
         device.pressBack();

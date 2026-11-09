@@ -127,4 +127,68 @@ public class WeatherJourneyTest extends LauncherTest {
         device.pressBack();
         assertVisible(R.string.tile_nav);
     }
+
+    // ───────────────────── a reading that has gone out of date ─────────────────────
+
+    /** The gusty reading, dated far enough back to have gone stale. */
+    private void homeStale(String reading) throws Exception {
+        open(
+                "home",
+                MainActivity.EXTRA_WEATHER,
+                reading,
+                MainActivity.EXTRA_WEATHER_AGE_MIN,
+                "240");
+    }
+
+    @Test
+    public void aStaleReadingShowsNoTemperatureOnTheHomeScreen() throws Exception {
+        homeStale("wind");
+        assertFalse(
+                "a four-hour-old temperature is still on the home screen",
+                hasTextContaining("12°"));
+    }
+
+    @Test
+    public void aStaleReadingShowsNoWarningOnTheHomeScreen() throws Exception {
+        // The one that matters most. The gusty reading warns about strong wind,
+        // gusting to 85 km/h, and a driver who reads that warning decides something about
+        // a road - on evidence four hours out of date, which is worse than an
+        // empty space where it was.
+        homeStale("wind");
+        assertFalse(
+                "a four-hour-old gust warning is still on the home screen",
+                hasTextContaining(str(R.string.warn_wind)));
+    }
+
+    @Test
+    public void aStaleReadingStillLetsTheForecastScreenBeReached() throws Exception {
+        // Hiding the figures must not take the way through to the screen that
+        // explains why they are gone: the panel keeps its dash and its tap.
+        homeStale("wind");
+        waitFor(androidx.test.uiautomator.By.textContains("--°")).click();
+        device.waitForIdle();
+        assertVisible(R.string.weather_title);
+    }
+
+    @Test
+    public void aStaleReadingSaysOnTheForecastScreenThatThereIsNoConnection() throws Exception {
+        open(
+                "weather",
+                MainActivity.EXTRA_WEATHER,
+                "wind",
+                MainActivity.EXTRA_WEATHER_AGE_MIN,
+                "240");
+        assertVisible(R.string.weather_offline);
+        assertFalse(
+                "the stale forecast is shown underneath the notice",
+                hasTextContaining(str(R.string.warn_wind)));
+    }
+
+    @Test
+    public void justUnderThreeHoursIsStillShown() throws Exception {
+        // The boundary, and the test that keeps the three above honest: without
+        // it they would also pass if pinning a reading were simply broken.
+        open("home", MainActivity.EXTRA_WEATHER, "wind", MainActivity.EXTRA_WEATHER_AGE_MIN, "170");
+        assertTrue("a reading not yet three hours old was hidden anyway", hasTextContaining("12°"));
+    }
 }

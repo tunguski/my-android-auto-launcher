@@ -97,6 +97,14 @@ public class MainActivity extends Activity {
     // Intent extras honoured only by a debuggable build; see applyTestOverrides.
     static final String EXTRA_SCREEN = "navi.screen";
     static final String EXTRA_WEATHER = "navi.weather";
+
+    /**
+     * Minutes to date the pinned reading back by, so that a test can see a stale one.
+     *
+     * <p>The alternative is a test that waits three hours.
+     */
+    static final String EXTRA_WEATHER_AGE_MIN = "navi.weather.age";
+
     static final String EXTRA_SIZE = "navi.size";
     static final String EXTRA_HOME_POINT = "navi.home";
     static final String EXTRA_NO_RECORDING = "navi.norecording";
@@ -289,6 +297,12 @@ public class MainActivity extends Activity {
                     // still runs, off the stored reading, until that reading is
                     // a week old.
                     applyAutoNight();
+                    // And redrawn even when the fetch above brought nothing
+                    // back, because a reading going stale is a change on screen
+                    // that no fetch reports: without this, a unit that loses the
+                    // network at noon would still be showing noon's warnings at
+                    // four, having never been asked again.
+                    showTemp();
                     ui.postDelayed(this, REFRESH_MS);
                 }
             };
@@ -982,6 +996,34 @@ public class MainActivity extends Activity {
         return h;
     }
 
+    /**
+     * The same header with the time in its far corner.
+     *
+     * <p>For the trip screen, which is the one a driver reads while the clock on the home screen is
+     * not in front of them - how long the drive has taken is half an answer without what time it is
+     * now.
+     *
+     * <p>A TextClock rather than a TextView and a ticker: it keeps itself right, including across a
+     * change of time zone, which a unit driven west of here will meet. The same {@code HH:mm} for
+     * both formats as the home screen, so the two clocks can never disagree about whether this unit
+     * tells the time in twenty-four hours.
+     */
+    private View headerWithClock(String title) {
+        LinearLayout h = (LinearLayout) header(title);
+        // Takes the width that is left, which is what puts the clock against
+        // the right edge without measuring anything.
+        View gap = new View(this);
+        h.addView(gap, new LinearLayout.LayoutParams(0, 1, 1f));
+        TextClock now = new TextClock(this);
+        now.setFormat24Hour("HH:mm");
+        now.setFormat12Hour("HH:mm");
+        now.setTextColor(TEXT);
+        now.setTextSize(TypedValue.COMPLEX_UNIT_PX, H * 0.05f);
+        now.setPadding(0, 0, px(0.01f), 0);
+        h.addView(now);
+        return h;
+    }
+
     // ───────────────────────────── TRIP STATS ─────────────────────────────
 
     /** Which trip the screen shows; null means the one being recorded. */
@@ -1003,7 +1045,7 @@ public class MainActivity extends Activity {
         box.setOrientation(LinearLayout.VERTICAL);
         box.setBackgroundColor(BG);
         box.setPadding(px(0.04f), px(0.03f), px(0.04f), px(0.03f));
-        box.addView(header(getString(R.string.stats_title)));
+        box.addView(headerWithClock(getString(R.string.stats_title)));
 
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
@@ -2626,6 +2668,14 @@ public class MainActivity extends Activity {
                             TEXT_DIM));
             return;
         }
+        if (Wx.isStale(prefs.getLong(PREF_WEATHER_AT, 0L), System.currentTimeMillis())) {
+            // The forecast is not shown alongside this. Three hours of silence
+            // from the network is a thing the driver needs to know in one
+            // glance, and a screen that says "no connection" over a full
+            // forecast is a screen that says the forecast is current.
+            weatherContent.addView(text(getString(R.string.weather_offline), 0.045f, TEXT_DIM));
+            return;
+        }
         try {
             JSONObject cur = lastWeather.getJSONObject("current");
             JSONObject hourly = lastWeather.getJSONObject("hourly");
@@ -2793,6 +2843,26 @@ public class MainActivity extends Activity {
 
     /** Puts the current reading on the home screen: temperature, icon, warning line. */
     private void showTemp() {
+        if (Wx.isStale(prefs.getLong(PREF_WEATHER_AT, 0L), System.currentTimeMillis())) {
+            // Nothing from the sky for three hours, so the home screen says so
+            // by saying nothing: a dash where the temperature was, no weather
+            // icon, and above all no warnings. A gale warning fetched this
+            // morning is worse than a blank space - a driver who reads it
+            // decides something about a road on evidence that has expired.
+            //
+            // The dash is the same thing the launcher shows before its first
+            // reading ever arrives, so this introduces no new sign to learn.
+            // The box stays tappable, and the weather screen behind it is where
+            // the reason is written.
+            tempView.setText("--°");
+            tempView.setTextColor(TEXT_DIM);
+            wxIcon.setVisibility(View.INVISIBLE);
+            warnIcon.setVisibility(View.GONE);
+            warnText.setVisibility(View.GONE);
+            fillWeather();
+            return;
+        }
+        wxIcon.setVisibility(View.VISIBLE);
         try {
             JSONObject cur = lastWeather.getJSONObject("current");
             tempView.setText(Math.round(cur.getDouble("temperature_2m")) + "°");
@@ -3075,7 +3145,7 @@ public class MainActivity extends Activity {
             handled = true;
         }
         if (i.hasExtra(EXTRA_WEATHER)) {
-            handled |= loadCannedWeather(i.getStringExtra(EXTRA_WEATHER));
+            handled |= loadCannedWeather(i.getStringExtra(EXTRA_WEATHER), ageMinutes(i));
         }
         if (i.hasExtra(EXTRA_SCREEN)) {
             String screen = i.getStringExtra(EXTRA_SCREEN);
@@ -3100,8 +3170,22 @@ public class MainActivity extends Activity {
         return (getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
     }
 
+    /**
+     * How many minutes old the pinned reading should pretend to be, from the intent.
+     *
+     * <p>Zero unless asked for, and unreadable values count as zero: a hook that fails loudly here
+     * would fail a test for the wrong reason.
+     */
+    private int ageMinutes(Intent i) {
+        try {
+            return Integer.parseInt(i.getStringExtra(EXTRA_WEATHER_AGE_MIN));
+        } catch (Exception ignored) {
+            return 0;
+        }
+    }
+
     /** Replaces the live reading with a stored one, so warnings are reproducible. */
-    private boolean loadCannedWeather(String name) {
+    private boolean loadCannedWeather(String name, int ageMinutes) {
         File f = new File(new File(getExternalFilesDir(null), "wx"), name + ".json");
         try (BufferedReader r = new BufferedReader(new FileReader(f))) {
             StringBuilder sb = new StringBuilder();
@@ -3111,6 +3195,16 @@ public class MainActivity extends Activity {
             }
             lastWeather = new JSONObject(sb.toString());
             placeName = lastWeather.optString("place", placeName);
+            // Pinning a reading means "this one just arrived", so it is dated
+            // now unless the caller asks for it to be older. Without this every
+            // canned reading would be three hours stale the moment it was
+            // pinned, and every screen pinned with one would show a dash and a
+            // no-connection notice instead of the weather the test or the
+            // screenshot was asking about. The age is how a test reaches the
+            // other case, which otherwise takes three hours to arrive.
+            prefs.edit()
+                    .putLong(PREF_WEATHER_AT, System.currentTimeMillis() - ageMinutes * 60_000L)
+                    .apply();
             weatherPinned = true;
             showTemp();
             return true;

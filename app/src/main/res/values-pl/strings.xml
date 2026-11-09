@@ -29,6 +29,7 @@
 
     <string name="weather_title">Pogoda</string>
     <string name="weather_loading">Pobieram prognozę…</string>
+    <string name="weather_offline">Brak połączenia od ponad trzech godzin, więc nie ma czego pokazać. Prognoza wróci, gdy urządzenie znów będzie online.</string>
     <string name="weather_no_location">Brak lokalizacji. Zezwól aplikacji na dostęp do lokalizacji\n(Ustawienia → Aplikacje → Navi simple → Uprawnienia).</string>
     <string name="weather_error">Błąd danych pogody</string>
     <string name="weather_feels">Odczuwalna %1$d°   ·   Wiatr %2$d km/h</string>
