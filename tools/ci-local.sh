@@ -99,11 +99,25 @@ while [ "$round" -le "$times" ]; do
             continue
         fi
         echo "──────── round $round/$times, shard $shard: running"
+        rm -rf device-log
         if sh tools/shard.sh "$shard"; then
             echo "──────── round $round/$times, shard $shard: PASSED"
         else
             echo "──────── round $round/$times, shard $shard: FAILED"
             failed="$failed round$round/shard$shard"
+        fi
+        # Put the recording somewhere the next shard will not write over. On a
+        # runner each shard is its own job with its own workspace, so shard.sh
+        # can write to one place; here four shards and every round share a
+        # directory. A crash in shard 1 was once explained by a logcat that had
+        # already been replaced by shard 3's, which is the kind of loss that is
+        # noticed a day later.
+        if [ -d device-log ]; then
+            kept="device-logs/round$round-shard$shard"
+            mkdir -p device-logs
+            rm -rf "$kept"
+            mv device-log "$kept"
+            echo "──────── round $round/$times, shard $shard: log in $kept"
         fi
     done
     round=$((round + 1))

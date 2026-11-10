@@ -35,3 +35,4 @@ docs/navi-user-guide.pdf
 docs/navi-user-guide.html
 # What the device was doing during an on-device run, written by tools/shard.sh.
 device-log/
+device-logs/
