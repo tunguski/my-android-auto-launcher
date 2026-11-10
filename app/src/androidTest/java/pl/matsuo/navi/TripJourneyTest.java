@@ -9,6 +9,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.LargeTest;
 import androidx.test.uiautomator.By;
 import androidx.test.uiautomator.UiObject2;
+import androidx.test.uiautomator.Until;
 import java.io.File;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -201,6 +202,42 @@ public class TripJourneyTest extends LauncherTest {
         assertTrue(
                 "the clock is not against the right edge: " + corner.getVisibleBounds(),
                 corner.getVisibleBounds().right > device.getDisplayWidth() * 0.85);
+    }
+
+    @Test
+    public void theTripScreenKeepsMovingAfterSomethingElseHasHadTheScreen() throws Exception {
+        // Reported from the car: the route drew for five minutes, then stopped
+        // while the drive went on being recorded, and going out to the home
+        // screen and back in brought it alive again with the whole route on it.
+        //
+        // Nothing had crashed - an exception on the main thread would have taken
+        // the launcher with it. The figures on this screen are redrawn by a
+        // ticker that onPause stops and only showStats starts, so one visit from
+        // anything that takes the screen left the panel standing still until it
+        // was rebuilt by hand.
+        installTripHistory();
+        open("trip");
+        assertVisible(R.string.stats_title);
+
+        shell("am start -a android.settings.SETTINGS");
+        assertTrue(
+                "another app was supposed to take the screen for this test",
+                device.wait(Until.hasObject(By.pkg("com.android.settings")), TIMEOUT_MS));
+        device.pressBack();
+        assertTrue(
+                "the launcher did not come back",
+                device.wait(Until.hasObject(By.pkg(PKG)), TIMEOUT_MS));
+        assertVisible(R.string.stats_title);
+
+        // The drive goes on. Nothing is tapped and nothing is reopened: the only
+        // thing that can put this on screen is the ticker, which is the point.
+        Trip.meters = 999_000;
+        String expected = Format.distance(Trip.meters);
+        assertTrue(
+                "the trip screen stopped redrawing after the launcher came back;"
+                        + " it still says "
+                        + whatIsOnScreen(),
+                device.wait(Until.hasObject(By.textContains(expected)), 30_000));
     }
 
     @Test

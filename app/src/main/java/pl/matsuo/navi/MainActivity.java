@@ -270,6 +270,12 @@ public class MainActivity extends Activity {
         updateStats();
         ui.removeCallbacks(periodic);
         ui.postDelayed(periodic, REFRESH_MS);
+        // And the trip screen's own ticker, if that is the screen being come
+        // back to. onPause stops both; forgetting this one left the panel
+        // standing still - showing the drive as it was when something else took
+        // the screen, while the drive itself went on being recorded - until the
+        // driver went out to the home screen and back in to have it rebuilt.
+        keepStatsMoving();
         // Once a day at most, and each version is asked about once, so a release
         // the driver said no to does not come back tomorrow.
         if (Updater.autoCheckEnabled(prefs)
@@ -1113,6 +1119,21 @@ public class MainActivity extends Activity {
         content.addView(statsView);
         homeView.setVisibility(View.INVISIBLE);
         updateStats();
+        keepStatsMoving();
+    }
+
+    /**
+     * Starts the trip screen's ticker, if that screen is up.
+     *
+     * <p>Called from both places that can leave the screen showing: building it, and coming back to
+     * it after something else has had the display. It was only called from the first for a long
+     * while, which is a mistake the one caller cannot see - hence one method, named for the
+     * guarantee rather than for the posting.
+     */
+    private void keepStatsMoving() {
+        if (statsView == null) {
+            return;
+        }
         ui.removeCallbacks(statsTicker);
         ui.postDelayed(statsTicker, 10_000L);
     }
