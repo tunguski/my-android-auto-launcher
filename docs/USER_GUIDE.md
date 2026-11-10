@@ -10,7 +10,7 @@ tap away and always comes back to that black screen.
 
 ![The home screen as it looks while driving](previews/home.png)
 
-This guide covers version 2.5. Every picture in it is a real screenshot of that
+This guide covers version 2.6. Every picture in it is a real screenshot of that
 build on a 1280×720 head unit screen, taken automatically when the guide is
 produced, so nothing here is a mock-up.
 
@@ -68,6 +68,12 @@ forecast.
 
 Beside it is a line drawing of the sky: sun, cloud, rain, snow, fog, a lightning
 bolt — and a crescent moon when the reading was taken after dark.
+
+If the unit has been without a connection for more than three hours, the
+temperature is replaced by a dash and the warning line disappears. A gale warning
+from three hours ago is worse than no warning: it says something about a road that
+may no longer be true. Tapping the dash still opens the weather screen, which says
+plainly that there is no connection.
 
 ![A clear night](previews/home_night_sky.png)
 
@@ -178,6 +184,9 @@ The shape on the left is the route that has been driven. There is no map under i
 no street names, no scale: just the shape, which is enough to recognise a drive at
 a glance and reveals nothing if somebody else looks at the screen. The yellow dot
 is the latest position.
+
+The time of day is in the top right corner, where a glance down finds it without
+hunting.
 
 ## Earlier trips
 
@@ -302,6 +311,14 @@ a surface that moves.
 
 A second, deeper level of dimming, toggled by tapping the clock on the home
 screen. The switch here says which way it currently is.
+
+**Follow the sun** is on to begin with: the screen dims at sunset and brightens at
+sunrise by itself, using the sunrise and sunset times that come with the weather
+reading. It needs no connection at the time — a reading up to a week old still says
+when it gets dark, because sunrise moves only a couple of minutes a day — but with
+no reading at all the brightness is left alone. A tap on the clock overrules it and
+stands until the next sunrise or sunset, so an unwanted dim is never undone a
+minute later.
 
 ![Night dimming on](previews/home_night.png)
 
