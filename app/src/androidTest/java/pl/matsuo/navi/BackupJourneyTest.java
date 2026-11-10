@@ -259,11 +259,24 @@ public class BackupJourneyTest extends LauncherTest {
 
         // The build carries no OAuth client, so Drive must say so rather than
         // pretending to work.
-        tapAfterScroll(R.string.backup_drive);
+        //
+        // Which mode is chosen is marked by a brighter grey the automator cannot
+        // read, so the stored setting is the tap's only receipt - and it is
+        // waited for rather than read, because reading it straight after the tap
+        // asks whether the handler behind it has run yet. On a cold emulator the
+        // answer is sometimes no, and the test then reports the launcher as
+        // having ignored a tap it had simply not got to.
+        tapUntil(
+                "the backup mode should have become Drive",
+                () -> tapAfterScroll(R.string.backup_drive),
+                () -> BackupRunner.MODE_DRIVE.equals(BackupRunner.mode(prefs)));
         assertEquals(BackupRunner.MODE_DRIVE, BackupRunner.mode(prefs));
         scrollTo(R.string.backup_no_client);
 
-        tapAfterScroll(R.string.backup_folder);
+        tapUntil(
+                "the backup mode should have become folder",
+                () -> tapAfterScroll(R.string.backup_folder),
+                () -> BackupRunner.MODE_FOLDER.equals(BackupRunner.mode(prefs)));
         assertEquals(BackupRunner.MODE_FOLDER, BackupRunner.mode(prefs));
         scrollTo(R.string.storage_section);
         assertTrue(
